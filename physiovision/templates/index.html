@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PhysioVision AI - Smart Exercise & Health Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Clean, streamlined Header -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="6" r="3.2"/>
+        <path d="M16 10 L16 19 M16 12 L9 17 M16 12 L23 8 M16 19 L11 28 M16 19 L22 27"/>
+      </svg>
+      <div class="brand-text"><strong>PhysioVision</strong><span>AI</span></div>
+    </div>
+
+    <div class="topbar-actions">
+      <!-- Quick Theme Switcher -->
+      <div class="theme-switcher" role="radiogroup" aria-label="Theme">
+        <button type="button" class="theme-btn active" data-theme-val="light" title="Light Theme">☀️ Light</button>
+        <button type="button" class="theme-btn" data-theme-val="kids" title="Fun Kids & Student Theme">🎈 Kids</button>
+        <button type="button" class="theme-btn" data-theme-val="dark" title="Dark Theme">🌙 Dark</button>
+      </div>
+
+      <!-- Wellness & Diet Guide Button -->
+      <button type="button" class="btn guide-btn" id="btn-open-guide">
+        <span class="guide-icon">🥗</span>
+        <span>Diet &amp; Flat Guide</span>
+      </button>
+
+      <!-- Status indicator -->
+      <div class="status" id="status" data-state="wait">
+        <span class="dot"></span><span id="status-text">Connecting camera...</span>
+        <span class="fps" id="fps"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Quick 3-Step Guided Header Bar -->
+  <nav class="flow-bar" aria-label="Quick setup flow">
+    <div class="flow-step">
+      <span class="step-badge">Step 1</span>
+      <span class="step-title">Choose Level:</span>
+      <div class="level-pills" role="radiogroup" aria-label="Activity Level">
+        <button type="button" class="level-pill" data-level="kids">
+          <span class="lp-icon">🎈</span> Kids (6 reps)
+        </button>
+        <button type="button" class="level-pill active" data-level="student">
+          <span class="lp-icon">🎒</span> Student (10 reps)
+        </button>
+        <button type="button" class="level-pill" data-level="adult">
+          <span class="lp-icon">⚡</span> Adult (15 reps)
+        </button>
+      </div>
+    </div>
+
+    <div class="flow-tip" id="level-suggestion">
+      💡 <strong>Student Tip:</strong> 10 reps every 2 study hours resets posture and burns snack calories!
+    </div>
+  </nav>
+
+  <main class="layout">
+    <!-- Camera Section -->
+    <section class="stage" aria-label="Camera and Exercise Selection">
+      <div class="video-wrap">
+        <img id="feed" src="{{ url_for('video_feed') }}" alt="Live camera view with body landmarks">
+        <div class="video-badge" id="video-badge" hidden></div>
+        <div class="cheer-overlay" id="cheer-overlay" hidden>
+          <span class="cheer-emoji">🌟</span>
+          <span class="cheer-text" id="cheer-text">Awesome Job!</span>
+        </div>
+      </div>
+
+      <!-- Step 2: Pick Exercise -->
+      <div class="step-label-row">
+        <span class="step-badge">Step 2</span>
+        <span class="step-heading">Pick your exercise:</span>
+      </div>
+      <div class="picker" id="picker" role="radiogroup" aria-label="Choose an exercise"></div>
+
+      <div class="ex-info">
+        <p id="ex-desc"></p>
+        <p class="tip" id="ex-tip"></p>
+      </div>
+    </section>
+
+    <!-- Workout Coach & Controls Panel -->
+    <aside class="panel" aria-label="Workout Panel">
+      
+      <!-- Big Start Action Box (Before Starting) -->
+      <div class="pre-start-card" id="pre-start-card">
+        <div class="step-label-row">
+          <span class="step-badge">Step 3</span>
+          <span class="step-heading">Ready to move?</span>
+        </div>
+        <button type="button" class="btn start-hero-btn" id="btn-start">
+          <span class="play-icon">▶</span>
+          <span>Start Workout</span>
+        </button>
+        <p class="hero-shortcut">Or press <kbd>Space</kbd> on your keyboard</p>
+      </div>
+
+      <!-- Live Workout Display (Visible while exercising) -->
+      <div class="live-workout-card" id="live-workout-card" hidden>
+        <!-- Big Rep Counter Ring -->
+        <div class="count-block">
+          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+            <circle class="ring-fg" id="ring" cx="60" cy="60" r="52"/>
+          </svg>
+          <div class="count">
+            <span class="reps" id="reps">0</span>
+            <span class="of">of <span id="target-show">10</span> reps</span>
+          </div>
+        </div>
+
+        <!-- Prominent Live Coaching Box -->
+        <div class="feedback" id="feedback" aria-live="polite">
+          Stand in front of the camera to begin.
+        </div>
+
+        <!-- Movement Phase Chips -->
+        <ol class="phases" id="phases">
+          <li data-stage="rest">1. Start</li>
+          <li data-stage="moving">2. Moving</li>
+          <li data-stage="peak">3. Target!</li>
+        </ol>
+
+        <!-- Live Stats: Time & Calories -->
+        <dl class="stats">
+          <div><dt>Time</dt><dd id="time">0:00</dd></div>
+          <div><dt>Calories</dt><dd id="calories"><span id="cal-num">0</span> <small class="unit">kcal</small></dd></div>
+          <div><dt>Avg Range</dt><dd id="rom">&ndash;</dd></div>
+          <div><dt>Partials</dt><dd id="partial">0</dd></div>
+        </dl>
+
+        <!-- Active Controls -->
+        <div class="controls live-controls">
+          <button type="button" class="btn secondary" id="btn-pause">⏸️ Pause</button>
+          <button type="button" class="btn primary" id="btn-finish">✅ Finish &amp; Save</button>
+          <button type="button" class="btn ghost" id="btn-cancel">✕ Discard</button>
+        </div>
+      </div>
+
+      <!-- Collapsible Options (Zero Clutter by Default) -->
+      <details class="more-options-details" id="more-options">
+        <summary class="more-options-summary">
+          <span>⚙️ Custom Settings &amp; Name</span>
+          <span class="summary-hint">(Optional)</span>
+        </summary>
+        <form class="setup" id="setup" autocomplete="off">
+          <label class="field">Who's exercising?
+            <input id="profile" list="profile-list" maxlength="40" placeholder="e.g. Me, Amma, Kiddo">
+            <datalist id="profile-list"></datalist>
+          </label>
+          <div class="row">
+            <label class="field">Side
+              <select id="side">
+                <option value="auto">Auto-detect</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label class="field">Target reps
+              <input id="target" type="number" min="1" max="200" value="10" inputmode="numeric">
+            </label>
+          </div>
+          <div class="voice-row">
+            <label class="check">
+              <input type="checkbox" id="voice" checked>
+              <span>🗣️ English voice counting &amp; cheers</span>
+            </label>
+          </div>
+        </form>
+
+        <!-- Technical Joint Angle Dial (Collapsed inside options) -->
+        <div class="gonio-box">
+          <div class="gonio">
+            <svg id="gonio" viewBox="-16 -2 252 130" role="img" aria-label="Joint angle gauge"></svg>
+            <div class="gonio-caption"><span id="joint-label">Elbow</span> angle <span class="side-tag" id="side-show"></span></div>
+          </div>
+        </div>
+      </details>
+
+    </aside>
+  </main>
+
+  <!-- Progress History Section -->
+  <section class="history" aria-labelledby="history-title">
+    <div class="history-head">
+      <h2 id="history-title">Your Fitness Log</h2>
+      <label class="field inline">Show
+        <select id="history-profile"><option value="">Everyone</option></select>
+      </label>
+    </div>
+    <div class="history-grid">
+      <figure class="chart-card">
+        <figcaption>Reps completed, last 7 days</figcaption>
+        <canvas id="chart" height="200"></canvas>
+      </figure>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Who</th>
+              <th>Exercise</th>
+              <th class="num">Reps</th>
+              <th class="num">Calories</th>
+              <th class="num">Partial</th>
+              <th class="num">Avg range</th>
+              <th class="num">Time</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <p class="empty" id="history-empty" hidden>No sessions saved yet. Finish a session and it will appear here.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Student & Flat Living Healthy Diet Guide Modal -->
+  <div class="guide-modal" id="guide-modal" hidden>
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🥗</span>
+          <div>
+            <h2 id="guide-modal-title">Healthy Living &amp; Smart Diet Guide</h2>
+            <p class="modal-subtitle">Essential wellness habits for students &amp; kids living in apartments/flats</p>
+          </div>
+        </div>
+        <button type="button" class="modal-close" id="btn-close-guide" aria-label="Close guide">&times;</button>
+      </div>
+
+      <nav class="guide-tabs" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="diet">🍎 Smart Diet &amp; Junk Food Swaps</button>
+        <button type="button" class="tab-btn" data-tab="flat">🏢 Active Flat Living</button>
+        <button type="button" class="tab-btn" data-tab="routine">⏰ Daily Routine &amp; Eye Care</button>
+      </nav>
+
+      <div class="modal-body">
+        <!-- TAB 1: DIET & JUNK FOOD -->
+        <div class="tab-pane active" id="tab-diet">
+          <div class="alert-box warn">
+            <strong>⚠️ The Flat &amp; Screen Reality:</strong> Living in apartments without daily outdoor running often leads to constant snacking on high-sodium chips, biscuits, and instant noodles. This causes sluggishness, weight gain, and brain fog during study.
+          </div>
+
+          <h3 class="section-heading">Smart Snack Swaps (Swap Junk for Energy)</h3>
+          <div class="swap-grid">
+            <div class="swap-card bad">
+              <span class="swap-tag">❌ Avoid Often</span>
+              <h4>Fried Chips &amp; Namkeen</h4>
+              <p>High in trans fats &amp; sodium, causes sluggish study sessions.</p>
+            </div>
+            <div class="swap-arrow">➔</div>
+            <div class="swap-card good">
+              <span class="swap-tag">✅ Smart Swap</span>
+              <h4>Roasted Makhana (Foxnuts) / Chana</h4>
+              <p>Crunchy, high in plant protein, magnesium &amp; zero junk fat.</p>
+            </div>
+
+            <div class="swap-card bad">
+              <span class="swap-tag">❌ Avoid Often</span>
+              <h4>Instant Packaged Noodles</h4>
+              <p>Refined flour, zero fiber, leads to quick insulin crash &amp; hunger.</p>
+            </div>
+            <div class="swap-arrow">➔</div>
+            <div class="swap-card good">
+              <span class="swap-tag">✅ Smart Swap</span>
+              <h4>Veggie Poha / Boiled Sweet Corn</h4>
+              <p>Complex carbs with peas &amp; carrots that sustain focus for 3+ hours.</p>
+            </div>
+
+            <div class="swap-card bad">
+              <span class="swap-tag">❌ Avoid Often</span>
+              <h4>Bottled Sodas &amp; Sweet Juices</h4>
+              <p>Liquid sugar overload (up to 8 tsp sugar per can), damages teeth.</p>
+            </div>
+            <div class="swap-arrow">➔</div>
+            <div class="swap-card good">
+              <span class="swap-tag">✅ Smart Swap</span>
+              <h4>Lemon Mint Water / Buttermilk (Chaas)</h4>
+              <p>Hydrating, naturally cooling, probiotics for gut health &amp; immunity.</p>
+            </div>
+          </div>
+
+          <div class="super-foods">
+            <h4>🧠 Top 4 Brain &amp; Growth Foods for Students at Home</h4>
+            <ul>
+              <li><strong>Almonds &amp; Walnuts:</strong> 5-6 soaked almonds in the morning boost memory and nerve function.</li>
+              <li><strong>Fresh Seasonal Fruit (Banana / Apple / Guava):</strong> Natural sweetness with fiber instead of candy.</li>
+              <li><strong>Sprouted Moong Salad:</strong> Vitamin C + clean protein for growing muscles.</li>
+              <li><strong>Curd / Yoghurt Bowl:</strong> Keeps digestive system calm during long hours of exam sitting.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- TAB 2: ACTIVE FLAT LIVING -->
+        <div class="tab-pane" id="tab-flat">
+          <div class="alert-box info">
+            <strong>🏢 No Playground? No Problem!</strong> Even inside a compact flat or apartment, you can hit 60 minutes of active movement every day with smart micro-habits.
+          </div>
+
+          <div class="hacks-list">
+            <div class="hack-item">
+              <div class="hack-num">1</div>
+              <div class="hack-content">
+                <h4>🪜 The Staircase Rule (Ditch the Lift)</h4>
+                <p>If you live in a multi-story building, climb 2 to 4 flights of stairs instead of taking the elevator. Just 3 rounds a day burns 60–80 calories and strengthens knees and calves.</p>
+              </div>
+            </div>
+
+            <div class="hack-item">
+              <div class="hack-num">2</div>
+              <div class="hack-content">
+                <h4>🧍 Hallway Pacing &amp; Balcony Sun</h4>
+                <p>Don't sit while memorizing or reading notes. Pace back and forth in the living room or hallway. Get 10–15 minutes of early morning sun on the balcony for natural Vitamin D.</p>
+              </div>
+            </div>
+
+            <div class="hack-item">
+              <div class="hack-num">3</div>
+              <div class="hack-content">
+                <h4>⚡ 5-Minute "Study Shakeout"</h4>
+                <p>Every 60 minutes of sitting: stand up, do 10 Squats and 10 Shoulder Presses using PhysioVision AI, and drink half a glass of water.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: DAILY ROUTINE & EYE CARE -->
+        <div class="tab-pane" id="tab-routine">
+          <div class="alert-box tip">
+            <strong>👀 Screen Ergonomics &amp; Sleep:</strong> Online classes and mobile screens cause digital eye strain, forward neck posture ("tech neck"), and disrupted melatonin.
+          </div>
+
+          <div class="rules-grid">
+            <div class="rule-card">
+              <h4>👁️ The 20-20-20 Rule</h4>
+              <p>Every <strong>20 minutes</strong> looking at a computer or phone, pause and look at something <strong>20 feet away</strong> for <strong>20 seconds</strong> to relax your eye muscles.</p>
+            </div>
+            <div class="rule-card">
+              <h4>💧 8-Glass Water Tracker</h4>
+              <p>Keep a reusable 1-liter bottle on your study table. Drink one full bottle before lunch, and one before dinner. Mild dehydration reduces concentration by up to 20%.</p>
+            </div>
+            <div class="rule-card">
+              <h4>🦒 Neck &amp; Shoulder Reset</h4>
+              <p>Do 5 gentle chin tucks (pull your head back like making a double chin) and roll your shoulders backwards 10 times to combat studying hunch.</p>
+            </div>
+            <div class="rule-card">
+              <h4>🌙 8-Hour Sleep Rule</h4>
+              <p>Turn off tablets and phones 45 minutes before bedtime. Muscle growth, posture recovery, and memory consolidation happen during deep sleep.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn primary" id="btn-close-guide-footer">Got It! Let's Exercise</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>PhysioVision AI is an educational prototype designed to support healthy home habits for students and families. Stop if any movement causes discomfort.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script id="ex-data" type="application/json">{{ exercises|tojson }}</script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

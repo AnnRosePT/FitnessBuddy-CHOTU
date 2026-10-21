@@ -812,13 +812,17 @@
           <div class="camera-wrap" id="cameraWrap">
             <!-- Live AI Pose Annotated MJPEG Feed from Python OpenCV Engine -->
             <img id="feed" src="/video_feed" alt="Live Pose Skeleton Feed">
+            <video id="webcamVideo" autoplay playsinline muted style="display:none; width:100%; height:100%; object-fit:cover;"></video>
 
             <!-- Loading overlay while stream connects -->
             <div class="camera-placeholder hidden" id="placeholder">
               <div class="camera-icon">📷</div>
-              <strong>Camera Loading...</strong>
-              <p>Connecting to Python Pose Engine stream...</p>
-              <button class="btn green" onclick="reconnectFeed()">Reconnect Camera</button>
+              <strong id="placeholderTitle">Camera Ready</strong>
+              <p id="placeholderDesc">Connecting to server stream or switch to your browser camera:</p>
+              <div style="display:flex; gap:8px; margin-top:6px;">
+                <button class="btn green" onclick="enableBrowserWebcam()">🎥 Use Browser Camera</button>
+                <button class="btn" onclick="reconnectFeed()">Reconnect Server</button>
+              </div>
             </div>
 
             <div class="overlay" id="exerciseBadge">
@@ -845,6 +849,7 @@
             <button class="btn" onclick="pauseWorkout()" id="pauseBtn">Ⅱ Pause</button>
             <button class="btn" onclick="finishWorkout()">■ End Session</button>
             <button class="btn" onclick="addDemoRep()">＋ Add Rep</button>
+            <button class="btn" onclick="enableBrowserWebcam()" id="btnWebcam">📷 Camera</button>
             <button class="btn" onclick="toggleAudio()" id="btnAudio">🔊 Voice: On</button>
           </div>
           <p class="muted" style="line-height:1.5; margin-top:10px;">
@@ -1233,23 +1238,50 @@
       toast(voiceEnabled ? 'Voice coach enabled' : 'Voice coach muted');
     }
 
-    // Feed Error Handling
+    // Feed Error Handling & Browser Webcam Support
     const feedImg = $('feed');
+    let feedRetries = 0;
     feedImg.addEventListener('error', () => {
-      console.warn('Feed image error, attempting reconnect...');
+      feedRetries++;
       $('placeholder').classList.remove('hidden');
-      setTimeout(() => {
-        feedImg.src = `/video_feed?t=${Date.now()}`;
-      }, 1500);
+      if (feedRetries <= 2) {
+        setTimeout(() => {
+          feedImg.src = `/video_feed?t=${Date.now()}`;
+        }, 1500);
+      } else {
+        $('placeholderTitle').textContent = 'Live Feed Connecting';
+        $('placeholderDesc').textContent = 'Server video stream is connecting, or click below to use your browser camera:';
+      }
     });
     feedImg.addEventListener('load', () => {
       $('placeholder').classList.add('hidden');
+      feedRetries = 0;
     });
 
+    async function enableBrowserWebcam() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+        const video = $('webcamVideo');
+        video.srcObject = stream;
+        video.style.display = 'block';
+        feedImg.style.display = 'none';
+        $('placeholder').classList.add('hidden');
+        $('cameraStatus').textContent = '● Browser Camera Active';
+        $('cameraStatus').style.color = '#0aa74e';
+        toast('Browser webcam connected!');
+      } catch (err) {
+        console.warn('Webcam error:', err);
+        toast('Could not open camera: ' + (err.name || 'Permission needed'));
+      }
+    }
+
     function reconnectFeed() {
+      feedRetries = 0;
+      feedImg.style.display = 'block';
+      $('webcamVideo').style.display = 'none';
       feedImg.src = `/video_feed?t=${Date.now()}`;
       $('placeholder').classList.add('hidden');
-      toast('Reconnecting camera stream...');
+      toast('Reconnecting server camera...');
     }
 
     // Exercise Selection
@@ -1265,7 +1297,10 @@
         speak(selectedExercise);
         
         if (activeSession) {
-          toast(`Selected ${selectedExercise}. Click Start Workout to begin.`);
+          toast(`Switched to ${selectedExercise}.`);
+          speak(`Switched to ${selectedExercise}`);
+        } else {
+          toast(`Selected ${selectedExercise}`);
         }
       });
     });
@@ -1289,39 +1324,28 @@
       $('targetLabel').textContent = target;
     }
 
-    // Backend Session Start / Stop
-    async function startWorkout() {
+    // Workout Session Start / Pause / End
+    function startWorkout() {
+      activeSession = { reps: 0, target: target };
+      isPaused = false;
+      lastReps = 0;
+      $('repCount').textContent = '0';
+      $('startBtn').textContent = '● Workout Running';
+      $('startBtn').classList.add('dark');
+      $('pauseBtn').textContent = 'Ⅱ Pause';
+      $('feedbackTitle').textContent = `Tracking ${selectedExercise}`;
+      $('feedbackText').textContent = 'Get into starting position. Reps and posture feedback are active.';
+      speak(`Starting ${selectedExercise}. Target is ${target} repetitions.`);
+      toast(`Workout started: ${selectedExercise}`);
+
+      // Also call Flask backend if available
       try {
-        const res = await fetch('/api/session/start', {
+        fetch('/api/session/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            exercise: selectedExerciseKey,
-            side: 'auto',
-            target: target,
-            profile: 'Student'
-          })
-        });
-        const data = await res.json();
-        if (data.session) {
-          activeSession = data.session;
-          isPaused = false;
-          lastReps = 0;
-          $('startBtn').textContent = '● Workout Running';
-          $('startBtn').classList.add('dark');
-          $('pauseBtn').textContent = 'Ⅱ Pause';
-          $('feedbackTitle').textContent = 'AI Tracking Active';
-          $('feedbackText').textContent = data.session.feedback || 'Stand so your full working body is visible.';
-          speak(`Starting ${selectedExercise}. Target is ${target} reps.`);
-          toast('Workout session started!');
-        } else if (data.error) {
-          toast(data.error);
-        }
-      } catch (err) {
-        console.error('Session start error:', err);
-        activeSession = { reps: 0, target: target };
-        $('startBtn').textContent = '● Workout Running';
-      }
+          body: JSON.stringify({ exercise: selectedExerciseKey, side: 'auto', target: target, profile: 'Student' })
+        }).catch(() => {});
+      } catch (_) {}
     }
 
     function toggleWorkout() {
@@ -1332,64 +1356,46 @@
       }
     }
 
-    async function pauseWorkout() {
+    function pauseWorkout() {
       if (!activeSession) {
-        toast('No active workout to pause.');
+        toast('No active workout to pause. Click Start Workout first.');
         return;
       }
       isPaused = !isPaused;
-      try {
-        await fetch('/api/session/pause', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paused: isPaused })
-        });
-      } catch (_) {}
-      
       $('pauseBtn').textContent = isPaused ? '▶ Resume' : 'Ⅱ Pause';
       $('startBtn').textContent = isPaused ? '▶ Resume Workout' : '● Workout Running';
       if (isPaused) {
-        $('startBtn').classList.remove('dark');
         $('feedbackTitle').textContent = 'Workout Paused';
-        $('feedbackText').textContent = 'Take a breather. Click Resume when you are ready.';
+        $('feedbackText').textContent = 'Take a breather. Click Resume to continue.';
         speak('Workout paused');
         toast('Workout paused');
       } else {
-        $('startBtn').classList.add('dark');
         $('feedbackTitle').textContent = 'Workout Resumed';
         $('feedbackText').textContent = 'Continue your reps smoothly.';
         speak('Resuming');
         toast('Workout resumed');
       }
+      try { fetch('/api/session/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: isPaused }) }).catch(() => {}); } catch (_) {}
     }
 
-    async function finishWorkout() {
+    function finishWorkout() {
       if (!activeSession) {
         toast('No active workout to end.');
         return;
       }
-      try {
-        const res = await fetch('/api/session/finish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const data = await res.json();
-        if (data.summary) {
-          addHistoryEntry(data.summary.exercise_name || selectedExercise, data.summary.reps, Math.round(data.summary.reps * 4.2));
-        }
-      } catch (_) {}
-
+      const completed = lastReps;
+      const kcal = Math.round(completed * 4.2);
+      addHistoryEntry(selectedExercise, completed, kcal);
       activeSession = null;
       isPaused = false;
       $('startBtn').textContent = '▶ Start Workout';
       $('startBtn').classList.remove('dark');
       $('pauseBtn').textContent = 'Ⅱ Pause';
-      $('feedbackTitle').textContent = 'Session Completed';
-      $('feedbackText').textContent = `Great job! You completed ${lastReps} reps.`;
-      speak(`Session finished. Great job on completing ${lastReps} reps.`);
-      toast('Session logged to history.');
-      loadHistory();
+      $('feedbackTitle').textContent = 'Session Finished!';
+      $('feedbackText').textContent = `Great effort! You completed ${completed} reps and burned ~${kcal} kcal.`;
+      speak(`Session finished. Great job on completing ${completed} reps!`);
+      toast('Workout saved to history!');
+      try { fetch('/api/session/finish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).catch(() => {}); } catch (_) {}
     }
 
     function addDemoRep() {
@@ -1398,27 +1404,30 @@
       const kcalBurned = lastReps * 4;
       $('liveBurn').textContent = 230 + kcalBurned;
       
-      const percent = Math.min(100, Math.round(72 + (lastReps / target) * 20));
+      const percent = Math.min(100, Math.round(72 + (lastReps / target) * 28));
       $('goalPercent').textContent = percent;
       $('activityRing').style.background = `conic-gradient(var(--green) 0 ${percent}%, #e7ecee ${percent}%)`;
 
       if (lastReps >= target) {
         $('feedbackTitle').textContent = 'Target Achieved!';
-        $('feedbackText').textContent = 'Outstanding effort! You reached your goal.';
-        speak(`${lastReps}. Target achieved! Great job!`);
-        toast('🎉 Target reached! Awesome work.');
+        $('feedbackText').textContent = 'Outstanding effort! You completed all target reps.';
+        speak(`${lastReps}. Target achieved! Amazing work!`);
+        toast('🎉 Target achieved! Fantastic!');
       } else {
-        $('feedbackTitle').textContent = `Rep ${lastReps} Completed`;
-        $('feedbackText').textContent = 'Good form. Lower smoothly and keep breathing.';
+        $('feedbackTitle').textContent = `Rep ${lastReps} Done`;
+        $('feedbackText').textContent = 'Smooth form. Keep the rhythm controlled.';
         speak(String(lastReps));
       }
     }
 
     // Polling backend state (/api/state)
+    let pollFailures = 0;
     async function pollState() {
+      if (pollFailures > 5) return;
       try {
         const res = await fetch('/api/state');
-        if (!res.ok) return;
+        if (!res.ok) { pollFailures++; return; }
+        pollFailures = 0;
         const state = await res.json();
 
         // Camera status

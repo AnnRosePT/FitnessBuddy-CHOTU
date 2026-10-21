@@ -74,6 +74,51 @@ def calc_angle(p1, p2, p3):
     cos = (bax * bcx + bay * bcy) / (na * nc)
     return math.degrees(math.acos(max(-1.0, min(1.0, cos))))
 
+@st.cache_resource
+def get_pose_landmarker():
+    """Cache landmarker instance for fast repeat inference using MediaPipe Tasks API."""
+    try:
+        from mediapipe.tasks import python as mp_tasks
+        from mediapipe.tasks.python import vision
+        from pose_engine import ensure_model
+
+        model_path = ensure_model("lite")
+        options = vision.PoseLandmarkerOptions(
+            base_options=mp_tasks.BaseOptions(model_asset_path=model_path),
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.5,
+        )
+        return vision.PoseLandmarker.create_from_options(options)
+    except Exception:
+        return None
+
+def extract_pose_landmarks(img_np):
+    """Safely extracts 33 landmarks from RGB numpy array across all MediaPipe versions."""
+    # Method 1: MediaPipe Tasks API (modern mediapipe 0.10.x+)
+    try:
+        landmarker = get_pose_landmarker()
+        if landmarker is not None and mp is not None:
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_np)
+            res = landmarker.detect(mp_image)
+            if res and res.pose_landmarks and len(res.pose_landmarks) > 0:
+                return res.pose_landmarks[0]
+    except Exception:
+        pass
+
+    # Method 2: Legacy mp.solutions.pose fallback
+    try:
+        if mp is not None and hasattr(mp, "solutions") and hasattr(mp.solutions, "pose"):
+            with mp.solutions.pose.Pose(static_image_mode=True, min_detection_confidence=0.5) as pose:
+                res = pose.process(img_np)
+                if res and res.pose_landmarks:
+                    return res.pose_landmarks.landmark
+    except Exception:
+        pass
+
+    return None
+
 # Page setup
 st.set_page_config(
     page_title="FitSense — AI Fitness Coach",
@@ -184,84 +229,84 @@ if nav == "📸 Live Camera Workout":
             detected = False
             measured_angle = None
 
-            if MEDIAPIPE_AVAILABLE and mp is not None:
-                with mp.solutions.pose.Pose(static_image_mode=True, min_detection_confidence=0.5) as pose:
-                    res = pose.process(img_np)
-                    if res.pose_landmarks:
-                        detected = True
-                        lm = res.pose_landmarks.landmark
+            lm = extract_pose_landmarks(img_np)
+            if lm is not None and len(lm) >= 29:
+                detected = True
 
-                        # Body landmarks
-                        # 11: left shoulder, 12: right shoulder
-                        # 13: left elbow, 14: right elbow
-                        # 15: left wrist, 16: right wrist
-                        # 23: left hip, 24: right hip
-                        # 25: left knee, 26: right knee
-                        # 27: left ankle, 28: right ankle
+                def get_vis(pt):
+                    return getattr(pt, "visibility", 1.0) or 1.0
 
-                        # Draw connections
-                        conns = [
-                            (11, 12), (11, 13), (13, 15),
-                            (12, 14), (14, 16),
-                            (11, 23), (12, 24), (23, 24),
-                            (23, 25), (25, 27),
-                            (24, 26), (26, 28)
-                        ]
-                        for c1, c2 in conns:
-                            if lm[c1].visibility > 0.4 and lm[c2].visibility > 0.4:
-                                p1 = (int(lm[c1].x * w), int(lm[c1].y * h))
-                                p2 = (int(lm[c2].x * w), int(lm[c2].y * h))
-                                draw.line([p1, p2], fill="#00ff66", width=4)
+                # Body landmarks
+                # 11: left shoulder, 12: right shoulder
+                # 13: left elbow, 14: right elbow
+                # 15: left wrist, 16: right wrist
+                # 23: left hip, 24: right hip
+                # 25: left knee, 26: right knee
+                # 27: left ankle, 28: right ankle
 
-                        # Draw joints
-                        for i in [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]:
-                            if lm[i].visibility > 0.4:
-                                pt = (int(lm[i].x * w), int(lm[i].y * h))
-                                draw.ellipse([pt[0]-6, pt[1]-6, pt[0]+6, pt[1]+6], fill="#ffffff", outline="#0aa74e", width=3)
+                # Draw connections
+                conns = [
+                    (11, 12), (11, 13), (13, 15),
+                    (12, 14), (14, 16),
+                    (11, 23), (12, 24), (23, 24),
+                    (23, 25), (25, 27),
+                    (24, 26), (26, 28)
+                ]
+                for c1, c2 in conns:
+                    if get_vis(lm[c1]) > 0.3 and get_vis(lm[c2]) > 0.3:
+                        p1 = (int(lm[c1].x * w), int(lm[c1].y * h))
+                        p2 = (int(lm[c2].x * w), int(lm[c2].y * h))
+                        draw.line([p1, p2], fill="#00ff66", width=4)
 
-                        # Calculate exercise angle
-                        if ex_key == "squat":
-                            # Measure knee angle: hip-knee-ankle (choose left or right side with better visibility)
-                            if lm[25].visibility >= lm[26].visibility:
-                                p1 = (lm[23].x, lm[23].y)
-                                p2 = (lm[25].x, lm[25].y)
-                                p3 = (lm[27].x, lm[27].y)
-                                joint_pt = (int(lm[25].x * w), int(lm[25].y * h))
-                            else:
-                                p1 = (lm[24].x, lm[24].y)
-                                p2 = (lm[26].x, lm[26].y)
-                                p3 = (lm[28].x, lm[28].y)
-                                joint_pt = (int(lm[26].x * w), int(lm[26].y * h))
-                            measured_angle = calc_angle(p1, p2, p3)
+                # Draw joints
+                for i in [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]:
+                    if get_vis(lm[i]) > 0.3:
+                        pt = (int(lm[i].x * w), int(lm[i].y * h))
+                        draw.ellipse([pt[0]-6, pt[1]-6, pt[0]+6, pt[1]+6], fill="#ffffff", outline="#0aa74e", width=3)
 
-                        elif ex_key in ("bicep_curl", "pushup"):
-                            # Measure elbow angle: shoulder-elbow-wrist
-                            if lm[13].visibility >= lm[14].visibility:
-                                p1 = (lm[11].x, lm[11].y)
-                                p2 = (lm[13].x, lm[13].y)
-                                p3 = (lm[15].x, lm[15].y)
-                                joint_pt = (int(lm[13].x * w), int(lm[13].y * h))
-                            else:
-                                p1 = (lm[12].x, lm[12].y)
-                                p2 = (lm[14].x, lm[14].y)
-                                p3 = (lm[16].x, lm[16].y)
-                                joint_pt = (int(lm[14].x * w), int(lm[14].y * h))
-                            measured_angle = calc_angle(p1, p2, p3)
+                # Calculate exercise angle
+                if ex_key == "squat":
+                    # Measure knee angle: hip-knee-ankle (choose left or right side with better visibility)
+                    if get_vis(lm[25]) >= get_vis(lm[26]):
+                        p1 = (lm[23].x, lm[23].y)
+                        p2 = (lm[25].x, lm[25].y)
+                        p3 = (lm[27].x, lm[27].y)
+                        joint_pt = (int(lm[25].x * w), int(lm[25].y * h))
+                    else:
+                        p1 = (lm[24].x, lm[24].y)
+                        p2 = (lm[26].x, lm[26].y)
+                        p3 = (lm[28].x, lm[28].y)
+                        joint_pt = (int(lm[26].x * w), int(lm[26].y * h))
+                    measured_angle = calc_angle(p1, p2, p3)
 
-                        elif ex_key == "shoulder_press":
-                            # Measure elbow extension: shoulder-elbow-wrist
-                            p1 = (lm[11].x, lm[11].y)
-                            p2 = (lm[13].x, lm[13].y)
-                            p3 = (lm[15].x, lm[15].y)
-                            measured_angle = calc_angle(p1, p2, p3)
-                            joint_pt = (int(lm[13].x * w), int(lm[13].y * h))
+                elif ex_key in ("bicep_curl", "pushup"):
+                    # Measure elbow angle: shoulder-elbow-wrist
+                    if get_vis(lm[13]) >= get_vis(lm[14]):
+                        p1 = (lm[11].x, lm[11].y)
+                        p2 = (lm[13].x, lm[13].y)
+                        p3 = (lm[15].x, lm[15].y)
+                        joint_pt = (int(lm[13].x * w), int(lm[13].y * h))
+                    else:
+                        p1 = (lm[12].x, lm[12].y)
+                        p2 = (lm[14].x, lm[14].y)
+                        p3 = (lm[16].x, lm[16].y)
+                        joint_pt = (int(lm[14].x * w), int(lm[14].y * h))
+                    measured_angle = calc_angle(p1, p2, p3)
 
-                        else:
-                            measured_angle = 90.0
-                            joint_pt = (w // 2, h // 2)
+                elif ex_key == "shoulder_press":
+                    # Measure elbow extension: shoulder-elbow-wrist
+                    p1 = (lm[11].x, lm[11].y)
+                    p2 = (lm[13].x, lm[13].y)
+                    p3 = (lm[15].x, lm[15].y)
+                    measured_angle = calc_angle(p1, p2, p3)
+                    joint_pt = (int(lm[13].x * w), int(lm[13].y * h))
 
-                        # Highlight joint
-                        draw.ellipse([joint_pt[0]-14, joint_pt[1]-14, joint_pt[0]+14, joint_pt[1]+14], outline="#ffeb3b", width=4)
+                else:
+                    measured_angle = 90.0
+                    joint_pt = (w // 2, h // 2)
+
+                # Highlight joint
+                draw.ellipse([joint_pt[0]-14, joint_pt[1]-14, joint_pt[0]+14, joint_pt[1]+14], outline="#ffeb3b", width=4)
 
             # Display results
             if detected and measured_angle is not None:

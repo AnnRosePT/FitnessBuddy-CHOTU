@@ -8,6 +8,7 @@ Then open http://127.0.0.1:5000 in your browser.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 from flask import Flask, Response, jsonify, render_template, request

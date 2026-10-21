@@ -3,6 +3,6 @@ services:
     name: fitsense-ai
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: python app.py
     plan: free
     autoDeploy: true

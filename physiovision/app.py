@@ -156,8 +156,8 @@ def main():
     ap = argparse.ArgumentParser(description="PhysioVision AI exercise monitor")
     ap.add_argument("--source", default="0",
                     help="webcam index (0, 1, ...) or path to a video file")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 5000)))
     ap.add_argument("--model", choices=["lite", "full", "heavy"], default="full",
                     help="pose model size: lite is fastest, heavy is most accurate")
     ap.add_argument("--no-mirror", action="store_true", help="don't mirror the webcam image")

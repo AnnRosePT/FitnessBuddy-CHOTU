@@ -850,6 +850,7 @@
             <button class="btn" onclick="finishWorkout()">■ End Session</button>
             <button class="btn" onclick="addDemoRep()">＋ Add Rep</button>
             <button class="btn" onclick="enableBrowserWebcam()" id="btnWebcam">📷 Camera</button>
+            <button class="btn" onclick="switchCamera()" id="btnSwitchCam" title="Switch camera source">🔄 Switch Cam</button>
             <button class="btn" onclick="toggleAudio()" id="btnAudio">🔊 Voice: On</button>
           </div>
           <p class="muted" style="line-height:1.5; margin-top:10px;">
@@ -1258,21 +1259,72 @@
       feedRetries = 0;
     });
 
-    async function enableBrowserWebcam() {
+    let currentStream = null;
+    let videoDevices = [];
+    let currentDeviceIndex = 0;
+
+    async function enableBrowserWebcam(preferredIndex = null) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+        let constraints = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
+
+        if (preferredIndex !== null && videoDevices[preferredIndex]) {
+          constraints = { video: { deviceId: { exact: videoDevices[preferredIndex].deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+        }
+
+        if (currentStream) {
+          currentStream.getTracks().forEach(t => t.stop());
+        }
+
+        let stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Retrieve device list with real labels now that permission is granted
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+        const track = stream.getVideoTracks()[0];
+        let label = (track && track.label) ? track.label.toLowerCase() : '';
+
+        // If the browser picked TranScreen or a virtual camera by default:
+        if (preferredIndex === null && (label.includes('transcreen') || label.includes('virtual') || label.includes('mirror') || label.includes('obs'))) {
+          const realIdx = videoDevices.findIndex(d => {
+            const l = (d.label || '').toLowerCase();
+            return !l.includes('transcreen') && !l.includes('virtual') && !l.includes('mirror') && !l.includes('obs');
+          });
+
+          if (realIdx !== -1 && videoDevices[realIdx].deviceId !== track.getSettings().deviceId) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { exact: videoDevices[realIdx].deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+            currentDeviceIndex = realIdx;
+          }
+        }
+
+        currentStream = stream;
         const video = $('webcamVideo');
         video.srcObject = stream;
         video.style.display = 'block';
         feedImg.style.display = 'none';
         $('placeholder').classList.add('hidden');
-        $('cameraStatus').textContent = '● Browser Camera Active';
+
+        const activeTrack = stream.getVideoTracks()[0];
+        const activeLabel = activeTrack ? activeTrack.label : 'Webcam';
+        $('cameraStatus').textContent = `● Active: ${activeLabel}`;
         $('cameraStatus').style.color = '#0aa74e';
-        toast('Browser webcam connected!');
+        toast(`Connected: ${activeLabel}`);
       } catch (err) {
         console.warn('Webcam error:', err);
-        toast('Could not open camera: ' + (err.name || 'Permission needed'));
+        toast('Camera error: ' + (err.message || 'Check browser camera permissions'));
       }
+    }
+
+    function switchCamera() {
+      if (videoDevices.length <= 1) {
+        enableBrowserWebcam(1);
+        return;
+      }
+      currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+      enableBrowserWebcam(currentDeviceIndex);
     }
 
     function reconnectFeed() {
@@ -1326,6 +1378,9 @@
 
     // Workout Session Start / Pause / End
     function startWorkout() {
+      if (!currentStream) {
+        enableBrowserWebcam();
+      }
       activeSession = { reps: 0, target: target };
       isPaused = false;
       lastReps = 0;

@@ -4,8 +4,6 @@ Runs on Streamlit Community Cloud (share.streamlit.app).
 import os
 import sys
 import tempfile
-import cv2
-import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -14,7 +12,43 @@ _pkg = os.path.join(os.path.dirname(__file__), "physiovision")
 if _pkg not in sys.path:
     sys.path.insert(0, _pkg)
 
-from exercises import EXERCISES, RepCounter, joint_angle
+CV2_AVAILABLE = False
+_cv2_err = None
+try:
+    import cv2
+    import numpy as np
+    CV2_AVAILABLE = True
+except Exception as e:
+    _cv2_err = str(e)
+    import numpy as np
+
+EXERCISES_AVAILABLE = False
+_ex_err = None
+try:
+    from exercises import EXERCISES, RepCounter, joint_angle
+    EXERCISES_AVAILABLE = True
+except Exception as e:
+    _ex_err = str(e)
+    from dataclasses import dataclass
+    @dataclass
+    class FallbackEx:
+        name: str
+        joint: str
+        rest_angle: float
+        peak_angle: float
+        description: str
+        camera_tip: str
+        cue_start: str
+        cue_peak: str
+        cue_return: str
+
+    EXERCISES = {
+        "bicep_curl": FallbackEx("Bicep Curl", "Elbow Flexion", 160.0, 35.0, "Arm curl tracking elbow flexion angle.", "Stand sideways or 45 degrees to the camera.", "Arms extended", "Squeeze at top", "Control descent"),
+        "squat": FallbackEx("Squats", "Knee & Hip Flexion", 165.0, 85.0, "Bodyweight or weighted squat tracking knee depth.", "Step back 2-3 meters so full body is visible.", "Chest up, hips back", "Thighs parallel to floor", "Drive through heels"),
+        "pushup": FallbackEx("Push-Ups", "Elbow & Shoulder", 160.0, 80.0, "Standard floor push-up tracking arm angle.", "Position camera at side floor level.", "Plank position", "Chest to floor", "Push up strong"),
+        "shoulder_press": FallbackEx("Shoulder Press", "Elbow Extension", 80.0, 160.0, "Overhead press for deltoid strength.", "Frame upper body and head clearance.", "Elbows at 90°", "Press fully overhead", "Lower with control"),
+        "jumping_jack": FallbackEx("Jumping Jacks", "Arm Abduction", 30.0, 140.0, "Cardio jumping movement.", "Step back so feet and overhead hands fit in frame.", "Feet together", "Jump wide & clap", "Return to center"),
+    }
 
 # Page setup
 st.set_page_config(

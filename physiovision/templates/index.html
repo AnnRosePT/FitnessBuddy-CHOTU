@@ -1,259 +1,1076 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PhysioVision AI - Smart Exercise & Health Coach</title>
+  <title>FitSense — AI Fitness Coach</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #20c768;
+      --green-dark: #0aa74e;
+      --green-light: #e3f9eb;
+      --dark: #10271c;
+      --ink: #20252b;
+      --muted: #777e88;
+      --line: #e8edf0;
+      --bg: #f4f7f8;
+      --card: #ffffff;
+      --red-bg: #fff1f0;
+      --red-text: #cf1322;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, select, input { font: inherit; }
+    button, select { cursor: pointer; }
+    button { border: 0; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 238px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: #fff;
+      border-right: 1px solid #edf0f2;
+      padding: 25px 17px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .brand {
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      color: var(--ink);
+    }
+    .brand b { color: var(--green-dark); }
+    .brandmark { font-size: 27px; color: var(--green); }
+    .nav { display: grid; gap: 7px; }
+    .nav button {
+      background: transparent;
+      color: #59616b;
+      text-align: left;
+      padding: 13px 14px;
+      border-radius: 12px;
+      display: flex;
+      gap: 13px;
+      align-items: center;
+      transition: all 0.15s ease;
+    }
+    .nav button.active, .nav button:hover {
+      background: var(--green-light);
+      color: var(--green-dark);
+      font-weight: 600;
+    }
+    .nav .ico { width: 22px; text-align: center; font-size: 18px; }
+    .upgrade {
+      margin-top: auto;
+      background: #fff8e9;
+      border-radius: 16px;
+      padding: 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      border: 1px solid #faeccb;
+    }
+    .upgrade strong { font-size: 15px; color: #523a0b; display: block; margin-bottom: 4px; }
+    .upgrade p { margin: 0; color: #735928; }
+    .upgrade button {
+      background: #079b4c;
+      color: white;
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+      font-weight: 700;
+      transition: background 0.15s ease;
+    }
+    .upgrade button:hover { background: #05823f; }
+
+    /* Main Area */
+    .main { padding: 16px 18px 24px; min-width: 0; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 15px;
+    }
+    .search {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      padding: 11px 18px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex: 1;
+      max-width: 580px;
+      color: #7a828b;
+    }
+    .search input { border: 0; outline: 0; width: 100%; font-size: 14px; background: transparent; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    .btn-diet-guide {
+      background: #eef8f1;
+      color: #0b8f44;
+      border: 1px solid #c7ebd1;
+      padding: 9px 15px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-diet-guide:hover { background: #dff2e6; transform: translateY(-1px); }
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #dfe9e3;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+    }
+
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(105deg, #061a12 0%, #0c2b1b 55%, #183b27 100%);
+      color: white;
+      border-radius: 16px;
+      padding: 24px 28px;
+      min-height: 175px;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 15px;
+      box-shadow: 0 4px 20px rgba(12, 43, 27, 0.15);
+    }
+    .hero:after {
+      content: '💪';
+      font-size: 155px;
+      position: absolute;
+      right: 25%;
+      bottom: -38px;
+      opacity: .18;
+      filter: grayscale(1);
+    }
+    .hero-copy { position: relative; z-index: 1; max-width: 510px; }
+    .eyebrow { color: #68ed8e; font-size: 12px; font-weight: 700; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hero h1 { font-size: 27px; margin: 0 0 8px; letter-spacing: -.7px; font-weight: 800; }
+    .hero p { font-size: 14px; color: #e0e8e3; line-height: 1.5; margin: 0 0 16px; }
+    .primary {
+      background: linear-gradient(100deg, #22c768, #39d36e);
+      color: #062b16;
+      padding: 13px 22px;
+      border-radius: 28px;
+      font-weight: 700;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 12px rgba(34, 199, 104, 0.3);
+    }
+    .primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(34, 199, 104, 0.4); }
+    .hero-pills { position: relative; z-index: 1; margin-left: auto; display: grid; gap: 8px; }
+    .hero-pills span {
+      background: #ffffff13;
+      border: 1px solid #ffffff1c;
+      padding: 8px 13px;
+      border-radius: 24px;
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Layout 3 Columns */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr) minmax(230px, .82fr);
+      gap: 13px;
+    }
+    .panel, .stat-card, .bottom-panel {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #edf0f2;
+    }
+    .panel { padding: 16px; min-width: 0; }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 13px;
+    }
+    .panel h2, .bottom-panel h2 { font-size: 16px; margin: 0; font-weight: 700; }
+    .small-link { color: #0ba64d; background: transparent; font-size: 12px; font-weight: 600; padding: 0; }
+    .small-link:hover { text-decoration: underline; }
+
+    /* Camera Panel */
+    .camera-wrap {
+      height: 390px;
+      position: relative;
+      border-radius: 15px;
+      overflow: hidden;
+      background: #0d1712;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .camera-wrap img#feed {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .camera-placeholder {
+      position: absolute;
+      inset: 0;
+      background: #122017;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #e5eee8;
+      gap: 9px;
+      padding: 20px;
+      z-index: 5;
+    }
+    .camera-placeholder.hidden { display: none !important; }
+    .camera-placeholder .camera-icon { font-size: 45px; }
+    .camera-placeholder p { font-size: 12px; max-width: 260px; line-height: 1.5; color: #a4b5aa; margin: 0; }
+
+    .overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(17, 28, 20, 0.85);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 24px;
+      font-size: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+      z-index: 6;
+    }
+    .reps {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      background: rgba(17, 28, 20, 0.88);
+      color: #fff;
+      border-radius: 14px;
+      padding: 10px 15px;
+      text-align: center;
+      min-width: 80px;
+      backdrop-filter: blur(4px);
+      z-index: 6;
+    }
+    .reps strong { display: block; font-size: 32px; color: #72f09b; line-height: 1; margin: 4px 0 2px; }
+    .feedback {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(17, 28, 20, 0.92);
+      color: #fff;
+      padding: 11px 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 12px;
+      backdrop-filter: blur(4px);
+      z-index: 6;
+    }
+    .feedback strong { display: block; color: #76ed99; font-size: 14px; margin-bottom: 2px; }
+    .cam-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #edf2f0;
+      color: #26332b;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .btn:hover { background: #e2e8e5; }
+    .btn.green { background: #20c768; color: #062b16; }
+    .btn.green:hover { background: #1cb55e; }
+    .btn.dark { background: #22282d; color: white; }
+    .btn.dark:hover { background: #14171a; }
+
+    /* Exercise Selector Panel */
+    .exercise-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+    .exercise {
+      background: #fff;
+      border: 1px solid #e6edf0;
+      border-radius: 13px;
+      padding: 11px 5px 10px;
+      text-align: center;
+      min-width: 0;
+      transition: all 0.15s ease;
+    }
+    .exercise:hover { border-color: #27ce6b; transform: translateY(-1px); }
+    .exercise.selected {
+      border-color: #27ce6b;
+      background: #edfff3;
+      box-shadow: 0 0 0 1.5px #27ce6b33;
+    }
+    .exercise .emoji { font-size: 26px; margin-bottom: 6px; }
+    .exercise span { font-size: 11px; display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .target { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 15px; }
+    .target h3 { font-size: 14px; margin: 0 0 11px; font-weight: 700; }
+    .segmented {
+      display: flex;
+      background: #f1f4f5;
+      border-radius: 22px;
+      padding: 3px;
+      margin-bottom: 12px;
+    }
+    .segmented button {
+      flex: 1;
+      background: transparent;
+      border-radius: 20px;
+      padding: 8px 4px;
+      font-size: 11px;
+      color: #68717a;
+      transition: all 0.15s ease;
+    }
+    .segmented button.active {
+      background: #20c768;
+      color: #06321a;
+      font-weight: 700;
+      box-shadow: 0 2px 5px rgba(32, 199, 104, 0.2);
+    }
+    .target-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      justify-content: center;
+    }
+    .target-row button {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #f0f4f5;
+      font-size: 19px;
+      display: grid;
+      place-items: center;
+      transition: background 0.15s ease;
+    }
+    .target-row button:hover { background: #e0e6e8; }
+    .target-row strong { min-width: 35px; text-align: center; font-size: 22px; }
+    .target-row small { color: var(--muted); font-size: 13px; }
+    .wide { width: 100%; border-radius: 11px; padding: 13px; justify-content: center; }
+
+    /* Right Column Stats */
+    .rightcol { display: grid; gap: 12px; align-content: start; }
+    .stat-card { padding: 16px; }
+    .stat-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .muted { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+    .ringrow { display: flex; justify-content: center; padding: 14px 0 10px; }
+    .ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 72%, #e7ecee 72%);
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    .ring:before {
+      content: '';
+      position: absolute;
+      inset: 9px;
+      background: #fff;
+      border-radius: 50%;
+    }
+    .ring div { position: relative; text-align: center; font-size: 24px; font-weight: 800; line-height: 1; }
+    .ring small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 3px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; text-align: center; margin-top: 5px; }
+    .metrics strong { display: block; font-size: 14px; }
+    .metrics span { font-size: 10px; color: var(--muted); }
+    .metric-icon { font-size: 16px; margin-bottom: 2px; display: block; }
+    .heart { font-size: 24px; font-weight: 800; margin-top: 12px; display: flex; align-items: baseline; gap: 5px; }
+    .heart small { font-size: 13px; font-weight: 500; color: var(--muted); }
+    .mini-bars { height: 44px; display: flex; align-items: end; gap: 5px; margin-top: 8px; }
+    .mini-bars i {
+      display: block;
+      flex: 1;
+      background: #3dd477;
+      border-radius: 4px 4px 0 0;
+      min-width: 5px;
+      transition: height 0.3s ease;
+    }
+    .streak { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 13px; height: 13px; border-radius: 50%; background: #22c768; }
+    .dots i.off { background: #e7ecee; }
+
+    /* Bottom Panels */
+    .bottom {
+      display: grid;
+      grid-template-columns: 1.15fr 1.1fr 1fr;
+      gap: 13px;
+      margin-top: 13px;
+    }
+    .bottom-panel { padding: 16px; min-width: 0; }
+    .history-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #f0f2f3;
+      padding: 9px 0;
+    }
+    .history-row:last-child { border: 0; }
+    .thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #edf7f0;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+    }
+    .history-row strong { font-size: 13px; }
+    .history-row p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .kcal { margin-left: auto; font-size: 12px; font-weight: 700; white-space: nowrap; color: #0aa74e; }
+    .chart {
+      height: 140px;
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      padding: 12px 4px 0;
+      border-bottom: 1px solid #e4e9eb;
+    }
+    .chart-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      height: 100%;
+      justify-content: end;
+    }
+    .bar {
+      width: 60%;
+      max-width: 24px;
+      background: #43d578;
+      border-radius: 4px 4px 0 0;
+      min-height: 6px;
+      transition: height 0.3s ease;
+    }
+    .bar:hover { background: #20c768; }
+    .chart-col span { font-size: 10px; color: var(--muted); padding-bottom: 4px; }
+    .achievements { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 12px; }
+    .achievement {
+      text-align: center;
+      border: 1px solid #f0f2f3;
+      border-radius: 12px;
+      padding: 10px 5px;
+      background: #fafcfb;
+    }
+    .badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #d8fbe4;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 7px;
+      font-size: 20px;
+    }
+    .achievement strong { display: block; font-size: 11px; font-weight: 700; }
+    .achievement span { font-size: 9px; color: var(--muted); display: block; margin-top: 3px; }
+
+    /* Nutrition & Healthy Diet Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(16, 39, 28, 0.6);
+      backdrop-filter: blur(5px);
+      display: none;
+      place-items: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: grid; }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 740px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      overflow: hidden;
+      animation: modalIn 0.2s ease-out;
+    }
+    @keyframes modalIn {
+      from { transform: translateY(12px) scale(0.98); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .modal-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid #eef2f4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-head h2 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
+    .modal-close {
+      background: #f1f4f5;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+      color: #636d77;
+    }
+    .modal-close:hover { background: #e2e7e9; }
+    .modal-nav {
+      display: flex;
+      background: #f4f7f8;
+      padding: 6px 14px;
+      gap: 8px;
+      border-bottom: 1px solid #edf0f2;
+    }
+    .modal-nav button {
+      background: transparent;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #63707c;
+      transition: all 0.15s ease;
+    }
+    .modal-nav button.active {
+      background: #fff;
+      color: #0aa74e;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .modal-content {
+      padding: 20px 22px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .alert-banner {
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #724f00;
+      margin-bottom: 14px;
+    }
+    .swap-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .swap-card {
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 12px;
+    }
+    .swap-card h4 { margin: 4px 0 3px; font-size: 13px; font-weight: 700; }
+    .swap-card p { margin: 0; font-size: 11px; line-height: 1.4; }
+    .swap-card.bad { background: var(--red-bg); border: 1px solid #ffa39e; }
+    .swap-card.bad .swap-tag { color: var(--red-text); font-weight: 700; font-size: 10px; text-transform: uppercase; }
+    .swap-card.bad h4 { color: #820014; }
+    .swap-card.bad p { color: #a8071a; }
+    .swap-arrow { text-align: center; font-size: 16px; color: var(--muted); }
+    .swap-card.good { background: #edfff3; border: 1px solid #8ce6ac; }
+    .swap-card.good .swap-tag { color: #089745; font-weight: 700; font-size: 10px; text-transform: uppercase; }
+    .swap-card.good h4 { color: #035224; }
+    .swap-card.good p { color: #0d6833; }
+    .super-box {
+      background: #f7fbf9;
+      border: 1px solid #dff1e6;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .super-box h4 { margin: 0 0 10px; font-size: 13px; color: #077938; font-weight: 700; }
+    .super-box ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; }
+    .hacks-list { display: grid; gap: 10px; }
+    .hack-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px;
+      border: 1px solid #edf2f0;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .hack-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #20c768;
+      color: #062b16;
+      font-weight: 800;
+      font-size: 13px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .hack-item h4 { margin: 0 0 3px; font-size: 13px; }
+    .hack-item p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .rule-card {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #edf0f2;
+      background: #fafbfb;
+    }
+    .rule-card h4 { margin: 0 0 5px; font-size: 13px; }
+    .rule-card p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #15241b;
+      color: #fff;
+      padding: 11px 18px;
+      border-radius: 12px;
+      font-size: 13px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.18);
+      display: none;
+      z-index: 200;
+    }
+    .toast.show { display: block; }
+    .hidden { display: none !important; }
+
+    /* Responsive */
+    @media(max-width: 1200px) {
+      .layout { grid-template-columns: minmax(0, 1.35fr) minmax(270px, 1fr); }
+      .rightcol { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
+      .bottom { grid-template-columns: 1fr 1fr; }
+      .bottom-panel:last-child { grid-column: 1 / -1; }
+    }
+    @media(max-width: 840px) {
+      .app { grid-template-columns: 70px minmax(0, 1fr); }
+      .sidebar { padding: 18px 8px; }
+      .brand { padding: 0; justify-content: center; }
+      .brandtext, .nav .label, .upgrade, .profile .details { display: none; }
+      .nav button { justify-content: center; padding: 13px 5px; }
+      .main { padding: 12px; }
+      .hero { padding: 20px; }
+      .hero-pills { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      .rightcol { grid-column: auto; grid-template-columns: 1fr 1fr; }
+      .bottom { grid-template-columns: 1fr; }
+      .bottom-panel:last-child { grid-column: auto; }
+      .camera-wrap { height: 340px; }
+      .rules-grid { grid-template-columns: 1fr; }
+    }
+    @media(max-width: 520px) {
+      .hero h1 { font-size: 21px; }
+      .hero:after { right: -10%; font-size: 120px; }
+      .rightcol { grid-template-columns: 1fr; }
+      .topbar { gap: 8px; }
+      .camera-wrap { height: 300px; }
+      .exercise-grid { gap: 6px; }
+      .swap-grid { grid-template-columns: 1fr; gap: 6px; }
+      .swap-arrow { transform: rotate(90deg); margin: 2px 0; }
+    }
+  </style>
 </head>
 <body>
-  <!-- Clean, streamlined Header -->
-  <header class="topbar">
-    <div class="brand">
-      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="16" cy="6" r="3.2"/>
-        <path d="M16 10 L16 19 M16 12 L9 17 M16 12 L23 8 M16 19 L11 28 M16 19 L22 27"/>
-      </svg>
-      <div class="brand-text"><strong>PhysioVision</strong><span>AI</span></div>
-    </div>
-
-    <div class="topbar-actions">
-      <!-- Quick Theme Switcher -->
-      <div class="theme-switcher" role="radiogroup" aria-label="Theme">
-        <button type="button" class="theme-btn active" data-theme-val="light" title="Light Theme">☀️ Light</button>
-        <button type="button" class="theme-btn" data-theme-val="kids" title="Fun Kids & Student Theme">🎈 Kids</button>
-        <button type="button" class="theme-btn" data-theme-val="dark" title="Dark Theme">🌙 Dark</button>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brandmark">✣</span>
+        <span class="brandtext">Fit<b>Sense</b></span>
       </div>
-
-      <!-- Wellness & Diet Guide Button -->
-      <button type="button" class="btn guide-btn" id="btn-open-guide">
-        <span class="guide-icon">🥗</span>
-        <span>Diet &amp; Flat Guide</span>
-      </button>
-
-      <!-- Status indicator -->
-      <div class="status" id="status" data-state="wait">
-        <span class="dot"></span><span id="status-text">Connecting camera...</span>
-        <span class="fps" id="fps"></span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Quick 3-Step Guided Header Bar -->
-  <nav class="flow-bar" aria-label="Quick setup flow">
-    <div class="flow-step">
-      <span class="step-badge">Step 1</span>
-      <span class="step-title">Choose Level:</span>
-      <div class="level-pills" role="radiogroup" aria-label="Activity Level">
-        <button type="button" class="level-pill" data-level="kids">
-          <span class="lp-icon">🎈</span> Kids (6 reps)
+      <nav class="nav">
+        <button class="active" data-page="Dashboard">
+          <span class="ico">⌂</span><span class="label">Dashboard</span>
         </button>
-        <button type="button" class="level-pill active" data-level="student">
-          <span class="lp-icon">🎒</span> Student (10 reps)
+        <button data-page="Workout">
+          <span class="ico">🏋️</span><span class="label">Workout</span>
         </button>
-        <button type="button" class="level-pill" data-level="adult">
-          <span class="lp-icon">⚡</span> Adult (15 reps)
+        <button data-page="Exercises">
+          <span class="ico">♙</span><span class="label">Exercises</span>
         </button>
-      </div>
-    </div>
-
-    <div class="flow-tip" id="level-suggestion">
-      💡 <strong>Student Tip:</strong> 10 reps every 2 study hours resets posture and burns snack calories!
-    </div>
-  </nav>
-
-  <main class="layout">
-    <!-- Camera Section -->
-    <section class="stage" aria-label="Camera and Exercise Selection">
-      <div class="video-wrap">
-        <img id="feed" src="{{ url_for('video_feed') }}" alt="Live camera view with body landmarks">
-        <div class="video-badge" id="video-badge" hidden></div>
-        <div class="cheer-overlay" id="cheer-overlay" hidden>
-          <span class="cheer-emoji">🌟</span>
-          <span class="cheer-text" id="cheer-text">Awesome Job!</span>
-        </div>
-      </div>
-
-      <!-- Step 2: Pick Exercise -->
-      <div class="step-label-row">
-        <span class="step-badge">Step 2</span>
-        <span class="step-heading">Pick your exercise:</span>
-      </div>
-      <div class="picker" id="picker" role="radiogroup" aria-label="Choose an exercise"></div>
-
-      <div class="ex-info">
-        <p id="ex-desc"></p>
-        <p class="tip" id="ex-tip"></p>
-      </div>
-    </section>
-
-    <!-- Workout Coach & Controls Panel -->
-    <aside class="panel" aria-label="Workout Panel">
-      
-      <!-- Big Start Action Box (Before Starting) -->
-      <div class="pre-start-card" id="pre-start-card">
-        <div class="step-label-row">
-          <span class="step-badge">Step 3</span>
-          <span class="step-heading">Ready to move?</span>
-        </div>
-        <button type="button" class="btn start-hero-btn" id="btn-start">
-          <span class="play-icon">▶</span>
-          <span>Start Workout</span>
+        <button data-page="Progress">
+          <span class="ico">▥</span><span class="label">Progress</span>
         </button>
-        <p class="hero-shortcut">Or press <kbd>Space</kbd> on your keyboard</p>
+        <button data-page="Nutrition" id="nav-nutrition">
+          <span class="ico">🥗</span><span class="label">Diet &amp; Nutrition</span>
+        </button>
+        <button data-page="Challenges">
+          <span class="ico">♜</span><span class="label">Challenges</span>
+        </button>
+        <button data-page="Settings">
+          <span class="ico">⚙</span><span class="label">Settings</span>
+        </button>
+      </nav>
+      <div class="upgrade">
+        <strong>♛ Upgrade to Pro</strong>
+        <p>Get personalized student plans &amp; posture metrics!</p>
+        <button onclick="toast('Pro plans are unlocked in this version!')">Upgrade Now</button>
       </div>
-
-      <!-- Live Workout Display (Visible while exercising) -->
-      <div class="live-workout-card" id="live-workout-card" hidden>
-        <!-- Big Rep Counter Ring -->
-        <div class="count-block">
-          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
-            <circle class="ring-bg" cx="60" cy="60" r="52"/>
-            <circle class="ring-fg" id="ring" cx="60" cy="60" r="52"/>
-          </svg>
-          <div class="count">
-            <span class="reps" id="reps">0</span>
-            <span class="of">of <span id="target-show">10</span> reps</span>
-          </div>
-        </div>
-
-        <!-- Prominent Live Coaching Box -->
-        <div class="feedback" id="feedback" aria-live="polite">
-          Stand in front of the camera to begin.
-        </div>
-
-        <!-- Movement Phase Chips -->
-        <ol class="phases" id="phases">
-          <li data-stage="rest">1. Start</li>
-          <li data-stage="moving">2. Moving</li>
-          <li data-stage="peak">3. Target!</li>
-        </ol>
-
-        <!-- Live Stats: Time & Calories -->
-        <dl class="stats">
-          <div><dt>Time</dt><dd id="time">0:00</dd></div>
-          <div><dt>Calories</dt><dd id="calories"><span id="cal-num">0</span> <small class="unit">kcal</small></dd></div>
-          <div><dt>Avg Range</dt><dd id="rom">&ndash;</dd></div>
-          <div><dt>Partials</dt><dd id="partial">0</dd></div>
-        </dl>
-
-        <!-- Active Controls -->
-        <div class="controls live-controls">
-          <button type="button" class="btn secondary" id="btn-pause">⏸️ Pause</button>
-          <button type="button" class="btn primary" id="btn-finish">✅ Finish &amp; Save</button>
-          <button type="button" class="btn ghost" id="btn-cancel">✕ Discard</button>
-        </div>
-      </div>
-
-      <!-- Collapsible Options (Zero Clutter by Default) -->
-      <details class="more-options-details" id="more-options">
-        <summary class="more-options-summary">
-          <span>⚙️ Custom Settings &amp; Name</span>
-          <span class="summary-hint">(Optional)</span>
-        </summary>
-        <form class="setup" id="setup" autocomplete="off">
-          <label class="field">Who's exercising?
-            <input id="profile" list="profile-list" maxlength="40" placeholder="e.g. Me, Amma, Kiddo">
-            <datalist id="profile-list"></datalist>
-          </label>
-          <div class="row">
-            <label class="field">Side
-              <select id="side">
-                <option value="auto">Auto-detect</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-              </select>
-            </label>
-            <label class="field">Target reps
-              <input id="target" type="number" min="1" max="200" value="10" inputmode="numeric">
-            </label>
-          </div>
-          <div class="voice-row">
-            <label class="check">
-              <input type="checkbox" id="voice" checked>
-              <span>🗣️ English voice counting &amp; cheers</span>
-            </label>
-          </div>
-        </form>
-
-        <!-- Technical Joint Angle Dial (Collapsed inside options) -->
-        <div class="gonio-box">
-          <div class="gonio">
-            <svg id="gonio" viewBox="-16 -2 252 130" role="img" aria-label="Joint angle gauge"></svg>
-            <div class="gonio-caption"><span id="joint-label">Elbow</span> angle <span class="side-tag" id="side-show"></span></div>
-          </div>
-        </div>
-      </details>
-
     </aside>
-  </main>
 
-  <!-- Progress History Section -->
-  <section class="history" aria-labelledby="history-title">
-    <div class="history-head">
-      <h2 id="history-title">Your Fitness Log</h2>
-      <label class="field inline">Show
-        <select id="history-profile"><option value="">Everyone</option></select>
-      </label>
-    </div>
-    <div class="history-grid">
-      <figure class="chart-card">
-        <figcaption>Reps completed, last 7 days</figcaption>
-        <canvas id="chart" height="200"></canvas>
-      </figure>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Who</th>
-              <th>Exercise</th>
-              <th class="num">Reps</th>
-              <th class="num">Calories</th>
-              <th class="num">Partial</th>
-              <th class="num">Avg range</th>
-              <th class="num">Time</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="history-body"></tbody>
-        </table>
-        <p class="empty" id="history-empty" hidden>No sessions saved yet. Finish a session and it will appear here.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Student & Flat Living Healthy Diet Guide Modal -->
-  <div class="guide-modal" id="guide-modal" hidden>
-    <div class="modal-backdrop" id="modal-backdrop"></div>
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
-      <div class="modal-header">
-        <div class="modal-title-group">
-          <span class="modal-icon">🥗</span>
-          <div>
-            <h2 id="guide-modal-title">Healthy Living &amp; Smart Diet Guide</h2>
-            <p class="modal-subtitle">Essential wellness habits for students &amp; kids living in apartments/flats</p>
+    <!-- Main Content -->
+    <main class="main">
+      <header class="topbar">
+        <div class="search">
+          <span>⌕</span>
+          <input id="search" placeholder="Search exercises (squat, bicep curl, push up...)" />
+        </div>
+        <div class="topbar-actions">
+          <button type="button" class="btn-diet-guide" id="btn-open-guide">
+            <span>🥗</span> Diet &amp; Flat Guide
+          </button>
+          <div class="profile">
+            <div class="avatar">🙂</div>
+            <div class="details">
+              <strong>Student Athlete</strong>
+              <div class="muted">Home Fitness Profile</div>
+            </div>
           </div>
         </div>
-        <button type="button" class="modal-close" id="btn-close-guide" aria-label="Close guide">&times;</button>
+      </header>
+
+      <!-- Hero Banner -->
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">— &nbsp;Be Stronger Every Day</div>
+          <h1>AI-Powered Fitness Coach</h1>
+          <p>Detect your exercises with computer vision, track angle thresholds, and level up your home fitness.</p>
+          <button class="primary" onclick="startWorkout()">
+            Start Workout &nbsp; ➔
+          </button>
+        </div>
+        <div class="hero-pills">
+          <span>⚙ &nbsp; AI Pose Detection</span>
+          <span>◉ &nbsp; Voice Rep Counting</span>
+          <span>▥ &nbsp; Smart Form Feedback</span>
+          <span>🥗 &nbsp; Student Nutrition Guide</span>
+        </div>
+      </section>
+
+      <!-- 3-Column Layout -->
+      <div class="layout">
+        <!-- Col 1: Camera Panel -->
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Live Exercise Detection</h2>
+            <span class="muted" id="cameraStatus">● Camera active</span>
+          </div>
+
+          <div class="camera-wrap" id="cameraWrap">
+            <!-- Live AI Pose Annotated MJPEG Feed from Python OpenCV Engine -->
+            <img id="feed" src="/video_feed" alt="Live Pose Skeleton Feed">
+
+            <!-- Loading overlay while stream connects -->
+            <div class="camera-placeholder hidden" id="placeholder">
+              <div class="camera-icon">📷</div>
+              <strong>Camera Loading...</strong>
+              <p>Connecting to Python Pose Engine stream...</p>
+              <button class="btn green" onclick="reconnectFeed()">Reconnect Camera</button>
+            </div>
+
+            <div class="overlay" id="exerciseBadge">
+              🏋️ &nbsp; <span id="activeExercise">Squat</span>
+            </div>
+
+            <div class="reps">
+              Reps
+              <strong id="repCount">0</strong>
+              <span style="font-size:11px">/ <span id="targetLabel">15</span></span>
+            </div>
+
+            <div class="feedback">
+              <span style="font-size:24px" id="feedbackIcon">✓</span>
+              <div>
+                <strong id="feedbackTitle">Ready to begin</strong>
+                <span id="feedbackText">Stand with your whole working body in view and click Start Workout.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cam-controls">
+            <button class="btn green" id="startBtn" onclick="toggleWorkout()">▶ Start Workout</button>
+            <button class="btn" onclick="pauseWorkout()" id="pauseBtn">Ⅱ Pause</button>
+            <button class="btn" onclick="finishWorkout()">■ End Session</button>
+            <button class="btn" onclick="addDemoRep()">＋ Add Rep</button>
+            <button class="btn" onclick="toggleAudio()" id="btnAudio">🔊 Voice: On</button>
+          </div>
+          <p class="muted" style="line-height:1.5; margin-top:10px;">
+            AI tracks joint angles &amp; posture automatically. Speaks reps aloud with real-time feedback.
+          </p>
+        </section>
+
+        <!-- Col 2: Select Exercise Panel -->
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Select Exercise</h2>
+            <button class="small-link" onclick="toast('Showing all exercises for home fitness.')">View All</button>
+          </div>
+
+          <div class="exercise-grid" id="exerciseGrid">
+            <button class="exercise selected" data-key="squat" data-ex="Squat" data-emoji="🏋️">
+              <div class="emoji">🏋️</div><span>Squat</span>
+            </button>
+            <button class="exercise" data-key="bicep_curl" data-ex="Bicep Curl" data-emoji="💪">
+              <div class="emoji">💪</div><span>Bicep Curl</span>
+            </button>
+            <button class="exercise" data-key="shoulder_press" data-ex="Shoulder Press" data-emoji="🙆">
+              <div class="emoji">🙆</div><span>Shoulder Press</span>
+            </button>
+            <button class="exercise" data-key="lateral_raise" data-ex="Lateral Raise" data-emoji="🦅">
+              <div class="emoji">🦅</div><span>Lateral Raise</span>
+            </button>
+            <button class="exercise" data-key="knee_raise" data-ex="Standing Knee Raise" data-emoji="🦵">
+              <div class="emoji">🦵</div><span>Knee Raise</span>
+            </button>
+            <button class="exercise" data-key="push_up" data-ex="Push Up" data-emoji="🤸">
+              <div class="emoji">🤸</div><span>Push Up</span>
+            </button>
+            <button class="exercise" data-key="lunge" data-ex="Lunge" data-emoji="🏃">
+              <div class="emoji">🏃</div><span>Lunge</span>
+            </button>
+            <button class="exercise" data-key="jumping_jack" data-ex="Jumping Jack" data-emoji="⭐">
+              <div class="emoji">⭐</div><span>Jumping Jack</span>
+            </button>
+            <button class="exercise" data-key="plank" data-ex="Plank" data-emoji="🧘">
+              <div class="emoji">🧘</div><span>Plank</span>
+            </button>
+          </div>
+
+          <div class="target">
+            <h3>Set Target</h3>
+            <div class="segmented">
+              <button class="active" data-mode="Repetitions">Repetitions</button>
+              <button data-mode="Duration">Duration</button>
+              <button data-mode="Calories">Calories</button>
+            </div>
+            <div class="target-row">
+              <button onclick="changeTarget(-1)">−</button>
+              <strong id="targetValue">15</strong>
+              <button onclick="changeTarget(1)">+</button>
+              <small id="targetUnit">reps</small>
+            </div>
+            <button class="primary wide" onclick="startWorkout()">
+              Start Workout &nbsp; ➔
+            </button>
+          </div>
+        </section>
+
+        <!-- Col 3: Right Sidebar Stats -->
+        <aside class="rightcol">
+          <div class="stat-card">
+            <div class="stat-title">
+              Today's Activity <span>▦</span>
+            </div>
+            <p class="muted">Active Session Log</p>
+            <div class="ringrow">
+              <div class="ring" id="activityRing">
+                <div><span id="goalPercent">72</span>%<small>Daily Goal</small></div>
+              </div>
+            </div>
+            <div class="metrics">
+              <div>
+                <span class="metric-icon">🔥</span>
+                <strong id="burnedKcal">320</strong><span>kcal</span>
+              </div>
+              <div>
+                <span class="metric-icon">👣</span>
+                <strong>4,231</strong><span>steps</span>
+              </div>
+              <div>
+                <span class="metric-icon">◷</span>
+                <strong id="mins">42</strong><span>min</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">
+              ❤️ &nbsp; Heart Rate
+              <span style="color:#079848;background:#e0fbe8;padding:4px 9px;border-radius:20px;font-size:10px;font-weight:600">Simulated</span>
+            </div>
+            <div class="heart" id="hrDisplay">78 <small>bpm</small></div>
+            <p class="muted">Optimal aerobic zone for endurance &amp; fat burn.</p>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">🔥 &nbsp; Calories Burned</div>
+            <div class="heart"><span id="liveBurn">230</span> <small>kcal</small></div>
+            <div class="mini-bars">
+              <i style="height:35%"></i>
+              <i style="height:50%"></i>
+              <i style="height:25%"></i>
+              <i style="height:62%"></i>
+              <i style="height:90%"></i>
+              <i style="height:45%"></i>
+              <i style="height:70%"></i>
+              <i style="height:55%"></i>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">🗓 &nbsp; Workout Streak</div>
+            <div class="streak">
+              <strong style="font-size:22px">5 <small style="font-weight:400">Days</small></strong>
+              <div class="dots">
+                <i></i><i></i><i></i><i class="off"></i><i class="off"></i>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <nav class="guide-tabs" role="tablist">
-        <button type="button" class="tab-btn active" data-tab="diet">🍎 Smart Diet &amp; Junk Food Swaps</button>
-        <button type="button" class="tab-btn" data-tab="flat">🏢 Active Flat Living</button>
-        <button type="button" class="tab-btn" data-tab="routine">⏰ Daily Routine &amp; Eye Care</button>
+      <!-- Bottom Panels -->
+      <div class="bottom">
+        <!-- History -->
+        <section class="bottom-panel">
+          <div class="panel-head">
+            <h2>Workout History</h2>
+            <button class="small-link" onclick="clearHistory()">Clear</button>
+          </div>
+          <div id="historyList">
+            <div class="history-row">
+              <div class="thumb">🏋️</div>
+              <div><strong>Squat</strong><p>15 reps · 3 sets</p></div>
+              <span class="kcal">120 kcal ›</span>
+            </div>
+            <div class="history-row">
+              <div class="thumb">💪</div>
+              <div><strong>Bicep Curl</strong><p>12 reps · 2 sets</p></div>
+              <span class="kcal">85 kcal ›</span>
+            </div>
+            <div class="history-row">
+              <div class="thumb">🤸</div>
+              <div><strong>Push Up</strong><p>20 reps · 3 sets</p></div>
+              <span class="kcal">90 kcal ›</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress Chart -->
+        <section class="bottom-panel">
+          <div class="panel-head">
+            <h2>Weekly Progress</h2>
+            <select class="btn" id="chartPeriod" aria-label="Progress period">
+              <option>Last 7 Days</option>
+              <option>Last 30 Days</option>
+            </select>
+          </div>
+          <div class="chart">
+            <div class="chart-col"><div class="bar" style="height:35%" title="18 reps"></div><span>Mon</span></div>
+            <div class="chart-col"><div class="bar" style="height:48%" title="25 reps"></div><span>Tue</span></div>
+            <div class="chart-col"><div class="bar" style="height:65%" title="34 reps"></div><span>Wed</span></div>
+            <div class="chart-col"><div class="bar" style="height:55%" title="28 reps"></div><span>Thu</span></div>
+            <div class="chart-col"><div class="bar" style="height:88%" title="46 reps"></div><span>Fri</span></div>
+            <div class="chart-col"><div class="bar" style="height:60%" title="31 reps"></div><span>Sat</span></div>
+            <div class="chart-col"><div class="bar" style="height:72%" title="38 reps"></div><span>Sun</span></div>
+          </div>
+          <p class="muted">Consistent daily motion builds long-term posture &amp; spine strength.</p>
+        </section>
+
+        <!-- Achievements -->
+        <section class="bottom-panel">
+          <div class="panel-head">
+            <h2>Achievements</h2>
+            <button class="small-link" onclick="toast('Keep exercising to unlock more badges!')">View All</button>
+          </div>
+          <div class="achievements">
+            <div class="achievement">
+              <div class="badge">🏋️</div>
+              <strong>First Workout</strong>
+              <span>Completed first workout</span>
+            </div>
+            <div class="achievement">
+              <div class="badge" style="background:#fff0c6">🏅</div>
+              <strong>Consistency</strong>
+              <span>5-day streak</span>
+            </div>
+            <div class="achievement">
+              <div class="badge" style="background:#e5e4ff">🔥</div>
+              <strong>Calorie Burner</strong>
+              <span>Burned 1,000+ kcal</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Diet & Nutrition Modal -->
+  <div class="modal-overlay" id="guideModal" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="guideTitle">🥗 Healthy Living &amp; Smart Diet Guide</h2>
+        <button type="button" class="modal-close" onclick="closeGuide()" aria-label="Close guide">&times;</button>
+      </div>
+
+      <nav class="modal-nav">
+        <button type="button" class="active" onclick="switchGuideTab('tab-diet', this)">🍎 Smart Diet &amp; Junk Swaps</button>
+        <button type="button" onclick="switchGuideTab('tab-flat', this)">🏢 Active Flat Living</button>
+        <button type="button" onclick="switchGuideTab('tab-routine', this)">⏰ Daily Routine &amp; Eye Care</button>
       </nav>
 
-      <div class="modal-body">
+      <div class="modal-content">
         <!-- TAB 1: DIET & JUNK FOOD -->
-        <div class="tab-pane active" id="tab-diet">
-          <div class="alert-box warn">
-            <strong>⚠️ The Flat &amp; Screen Reality:</strong> Living in apartments without daily outdoor running often leads to constant snacking on high-sodium chips, biscuits, and instant noodles. This causes sluggishness, weight gain, and brain fog during study.
+        <div class="tab-section active" id="tab-diet">
+          <div class="alert-banner">
+            <strong>⚠️ The Flat &amp; Screen Reality:</strong> Living in apartments without daily outdoor sports often leads to constant snacking on high-sodium chips, biscuits, and instant noodles. This causes sluggishness, weight gain, and brain fog during study.
           </div>
 
-          <h3 class="section-heading">Smart Snack Swaps (Swap Junk for Energy)</h3>
+          <h3 style="font-size:14px; margin:0 0 10px;">Smart Snack Swaps (Swap Junk for Energy)</h3>
+          
           <div class="swap-grid">
             <div class="swap-card bad">
               <span class="swap-tag">❌ Avoid Often</span>
@@ -290,9 +1107,21 @@
               <h4>Lemon Mint Water / Buttermilk (Chaas)</h4>
               <p>Hydrating, naturally cooling, probiotics for gut health &amp; immunity.</p>
             </div>
+
+            <div class="swap-card bad">
+              <span class="swap-tag">❌ Avoid Often</span>
+              <h4>Bakery Biscuits &amp; Cookies</h4>
+              <p>Made with palm oil and sugar, spikes glucose without satiety.</p>
+            </div>
+            <div class="swap-arrow">➔</div>
+            <div class="swap-card good">
+              <span class="swap-tag">✅ Smart Swap</span>
+              <h4>Whole Wheat Toast with Peanut Butter</h4>
+              <p>Slow-digesting protein and healthy fats to fuel afternoon homework.</p>
+            </div>
           </div>
 
-          <div class="super-foods">
+          <div class="super-box">
             <h4>🧠 Top 4 Brain &amp; Growth Foods for Students at Home</h4>
             <ul>
               <li><strong>Almonds &amp; Walnuts:</strong> 5-6 soaked almonds in the morning boost memory and nerve function.</li>
@@ -304,15 +1133,15 @@
         </div>
 
         <!-- TAB 2: ACTIVE FLAT LIVING -->
-        <div class="tab-pane" id="tab-flat">
-          <div class="alert-box info">
+        <div class="tab-section" id="tab-flat">
+          <div class="alert-banner">
             <strong>🏢 No Playground? No Problem!</strong> Even inside a compact flat or apartment, you can hit 60 minutes of active movement every day with smart micro-habits.
           </div>
 
           <div class="hacks-list">
             <div class="hack-item">
               <div class="hack-num">1</div>
-              <div class="hack-content">
+              <div>
                 <h4>🪜 The Staircase Rule (Ditch the Lift)</h4>
                 <p>If you live in a multi-story building, climb 2 to 4 flights of stairs instead of taking the elevator. Just 3 rounds a day burns 60–80 calories and strengthens knees and calves.</p>
               </div>
@@ -320,7 +1149,7 @@
 
             <div class="hack-item">
               <div class="hack-num">2</div>
-              <div class="hack-content">
+              <div>
                 <h4>🧍 Hallway Pacing &amp; Balcony Sun</h4>
                 <p>Don't sit while memorizing or reading notes. Pace back and forth in the living room or hallway. Get 10–15 minutes of early morning sun on the balcony for natural Vitamin D.</p>
               </div>
@@ -328,54 +1157,379 @@
 
             <div class="hack-item">
               <div class="hack-num">3</div>
-              <div class="hack-content">
+              <div>
                 <h4>⚡ 5-Minute "Study Shakeout"</h4>
-                <p>Every 60 minutes of sitting: stand up, do 10 Squats and 10 Shoulder Presses using PhysioVision AI, and drink half a glass of water.</p>
+                <p>Every 60 minutes of sitting: stand up, do 10 Squats and 10 Shoulder Presses using FitSense AI, and drink half a glass of water.</p>
               </div>
             </div>
           </div>
         </div>
 
         <!-- TAB 3: DAILY ROUTINE & EYE CARE -->
-        <div class="tab-pane" id="tab-routine">
-          <div class="alert-box tip">
+        <div class="tab-section" id="tab-routine">
+          <div class="alert-banner">
             <strong>👀 Screen Ergonomics &amp; Sleep:</strong> Online classes and mobile screens cause digital eye strain, forward neck posture ("tech neck"), and disrupted melatonin.
           </div>
 
           <div class="rules-grid">
             <div class="rule-card">
               <h4>👁️ The 20-20-20 Rule</h4>
-              <p>Every <strong>20 minutes</strong> looking at a computer or phone, pause and look at something <strong>20 feet away</strong> for <strong>20 seconds</strong> to relax your eye muscles.</p>
+              <p>Every <strong>20 minutes</strong> looking at a screen, pause and look at something <strong>20 feet away</strong> for <strong>20 seconds</strong> to relax your eye focus.</p>
             </div>
             <div class="rule-card">
               <h4>💧 8-Glass Water Tracker</h4>
-              <p>Keep a reusable 1-liter bottle on your study table. Drink one full bottle before lunch, and one before dinner. Mild dehydration reduces concentration by up to 20%.</p>
+              <p>Keep a reusable 1-liter bottle on your study desk. Drink one full bottle before lunch, and one before dinner to keep focus high.</p>
             </div>
             <div class="rule-card">
               <h4>🦒 Neck &amp; Shoulder Reset</h4>
-              <p>Do 5 gentle chin tucks (pull your head back like making a double chin) and roll your shoulders backwards 10 times to combat studying hunch.</p>
+              <p>Do 5 gentle chin tucks (pull head back) and roll shoulders backwards 10 times to combat studying hunch.</p>
             </div>
             <div class="rule-card">
               <h4>🌙 8-Hour Sleep Rule</h4>
-              <p>Turn off tablets and phones 45 minutes before bedtime. Muscle growth, posture recovery, and memory consolidation happen during deep sleep.</p>
+              <p>Turn off tablets and phones 45 minutes before bedtime. Deep sleep restores muscle tissue and strengthens memory.</p>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn primary" id="btn-close-guide-footer">Got It! Let's Exercise</button>
-      </div>
     </div>
   </div>
 
-  <footer class="footer">
-    <p>PhysioVision AI is an educational prototype designed to support healthy home habits for students and families. Stop if any movement causes discomfort.</p>
-  </footer>
+  <div class="toast" id="toast"></div>
 
-  <div class="toast" id="toast" role="status" hidden></div>
+  <!-- Application Logic -->
+  <script>
+    let selectedExerciseKey = 'squat';
+    let selectedExercise = 'Squat';
+    let target = 15;
+    let mode = 'Repetitions';
+    let activeSession = null;
+    let isPaused = false;
+    let lastReps = 0;
+    let voiceEnabled = true;
 
-  <script id="ex-data" type="application/json">{{ exercises|tojson }}</script>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+    const $ = id => document.getElementById(id);
+
+    function toast(msg) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function speak(text) {
+      if (!voiceEnabled || !window.speechSynthesis) return;
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.05;
+        u.pitch = 1.0;
+        window.speechSynthesis.speak(u);
+      } catch (_) {}
+    }
+
+    function toggleAudio() {
+      voiceEnabled = !voiceEnabled;
+      $('btnAudio').textContent = voiceEnabled ? '🔊 Voice: On' : '🔇 Voice: Off';
+      toast(voiceEnabled ? 'Voice coach enabled' : 'Voice coach muted');
+    }
+
+    // Feed Error Handling
+    const feedImg = $('feed');
+    feedImg.addEventListener('error', () => {
+      console.warn('Feed image error, attempting reconnect...');
+      $('placeholder').classList.remove('hidden');
+      setTimeout(() => {
+        feedImg.src = `/video_feed?t=${Date.now()}`;
+      }, 1500);
+    });
+    feedImg.addEventListener('load', () => {
+      $('placeholder').classList.add('hidden');
+    });
+
+    function reconnectFeed() {
+      feedImg.src = `/video_feed?t=${Date.now()}`;
+      $('placeholder').classList.add('hidden');
+      toast('Reconnecting camera stream...');
+    }
+
+    // Exercise Selection
+    document.querySelectorAll('.exercise').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.exercise').forEach(x => x.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedExerciseKey = btn.dataset.key || 'squat';
+        selectedExercise = btn.dataset.ex || 'Squat';
+        const emoji = btn.dataset.emoji || '🏋️';
+        $('activeExercise').textContent = selectedExercise;
+        $('exerciseBadge').innerHTML = `${emoji} &nbsp; <span>${selectedExercise}</span>`;
+        speak(selectedExercise);
+        
+        if (activeSession) {
+          toast(`Selected ${selectedExercise}. Click Start Workout to begin.`);
+        }
+      });
+    });
+
+    // Target Mode (Reps, Duration, Calories)
+    document.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+        target = mode === 'Duration' ? 5 : mode === 'Calories' ? 100 : 15;
+        $('targetValue').textContent = target;
+        $('targetLabel').textContent = target;
+        $('targetUnit').textContent = mode === 'Duration' ? 'minutes' : mode === 'Calories' ? 'kcal' : 'reps';
+      });
+    });
+
+    function changeTarget(delta) {
+      target = Math.max(1, Math.min(999, target + delta));
+      $('targetValue').textContent = target;
+      $('targetLabel').textContent = target;
+    }
+
+    // Backend Session Start / Stop
+    async function startWorkout() {
+      try {
+        const res = await fetch('/api/session/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exercise: selectedExerciseKey,
+            side: 'auto',
+            target: target,
+            profile: 'Student'
+          })
+        });
+        const data = await res.json();
+        if (data.session) {
+          activeSession = data.session;
+          isPaused = false;
+          lastReps = 0;
+          $('startBtn').textContent = '● Workout Running';
+          $('startBtn').classList.add('dark');
+          $('pauseBtn').textContent = 'Ⅱ Pause';
+          $('feedbackTitle').textContent = 'AI Tracking Active';
+          $('feedbackText').textContent = data.session.feedback || 'Stand so your full working body is visible.';
+          speak(`Starting ${selectedExercise}. Target is ${target} reps.`);
+          toast('Workout session started!');
+        } else if (data.error) {
+          toast(data.error);
+        }
+      } catch (err) {
+        console.error('Session start error:', err);
+        activeSession = { reps: 0, target: target };
+        $('startBtn').textContent = '● Workout Running';
+      }
+    }
+
+    function toggleWorkout() {
+      if (activeSession) {
+        pauseWorkout();
+      } else {
+        startWorkout();
+      }
+    }
+
+    async function pauseWorkout() {
+      if (!activeSession) {
+        toast('No active workout to pause.');
+        return;
+      }
+      isPaused = !isPaused;
+      try {
+        await fetch('/api/session/pause', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paused: isPaused })
+        });
+      } catch (_) {}
+      
+      $('pauseBtn').textContent = isPaused ? '▶ Resume' : 'Ⅱ Pause';
+      $('startBtn').textContent = isPaused ? '▶ Resume Workout' : '● Workout Running';
+      if (isPaused) {
+        $('startBtn').classList.remove('dark');
+        $('feedbackTitle').textContent = 'Workout Paused';
+        $('feedbackText').textContent = 'Take a breather. Click Resume when you are ready.';
+        speak('Workout paused');
+        toast('Workout paused');
+      } else {
+        $('startBtn').classList.add('dark');
+        $('feedbackTitle').textContent = 'Workout Resumed';
+        $('feedbackText').textContent = 'Continue your reps smoothly.';
+        speak('Resuming');
+        toast('Workout resumed');
+      }
+    }
+
+    async function finishWorkout() {
+      if (!activeSession) {
+        toast('No active workout to end.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/session/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (data.summary) {
+          addHistoryEntry(data.summary.exercise_name || selectedExercise, data.summary.reps, Math.round(data.summary.reps * 4.2));
+        }
+      } catch (_) {}
+
+      activeSession = null;
+      isPaused = false;
+      $('startBtn').textContent = '▶ Start Workout';
+      $('startBtn').classList.remove('dark');
+      $('pauseBtn').textContent = 'Ⅱ Pause';
+      $('feedbackTitle').textContent = 'Session Completed';
+      $('feedbackText').textContent = `Great job! You completed ${lastReps} reps.`;
+      speak(`Session finished. Great job on completing ${lastReps} reps.`);
+      toast('Session logged to history.');
+      loadHistory();
+    }
+
+    function addDemoRep() {
+      lastReps++;
+      $('repCount').textContent = lastReps;
+      const kcalBurned = lastReps * 4;
+      $('liveBurn').textContent = 230 + kcalBurned;
+      
+      const percent = Math.min(100, Math.round(72 + (lastReps / target) * 20));
+      $('goalPercent').textContent = percent;
+      $('activityRing').style.background = `conic-gradient(var(--green) 0 ${percent}%, #e7ecee ${percent}%)`;
+
+      if (lastReps >= target) {
+        $('feedbackTitle').textContent = 'Target Achieved!';
+        $('feedbackText').textContent = 'Outstanding effort! You reached your goal.';
+        speak(`${lastReps}. Target achieved! Great job!`);
+        toast('🎉 Target reached! Awesome work.');
+      } else {
+        $('feedbackTitle').textContent = `Rep ${lastReps} Completed`;
+        $('feedbackText').textContent = 'Good form. Lower smoothly and keep breathing.';
+        speak(String(lastReps));
+      }
+    }
+
+    // Polling backend state (/api/state)
+    async function pollState() {
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+        const state = await res.json();
+
+        // Camera status
+        if (state.camera_ok) {
+          $('cameraStatus').textContent = `● Camera active (${state.fps || 15} FPS)`;
+          $('cameraStatus').style.color = '#0aa74e';
+          $('placeholder').classList.add('hidden');
+        } else {
+          $('cameraStatus').textContent = '● Camera initializing...';
+          $('cameraStatus').style.color = '#fa8c16';
+        }
+
+        // Live session metrics from AI Pose Engine
+        if (state.session) {
+          activeSession = state.session;
+          const currentReps = state.session.reps || 0;
+          $('repCount').textContent = currentReps;
+          $('targetLabel').textContent = state.session.target || target;
+          
+          if (state.session.feedback) {
+            $('feedbackText').textContent = state.session.feedback;
+          }
+          if (state.session.stage) {
+            $('feedbackTitle').textContent = `Stage: ${state.session.stage}`;
+          }
+
+          // Voice on rep increment
+          if (currentReps > lastReps) {
+            lastReps = currentReps;
+            const kcal = currentReps * 4;
+            $('liveBurn').textContent = 230 + kcal;
+            const percent = Math.min(100, Math.round(72 + (currentReps / (state.session.target || target)) * 20));
+            $('goalPercent').textContent = percent;
+            $('activityRing').style.background = `conic-gradient(var(--green) 0 ${percent}%, #e7ecee ${percent}%)`;
+            
+            if (currentReps >= (state.session.target || target)) {
+              speak(`${currentReps}. Target achieved! Amazing work!`);
+              toast('🎉 Target reached! Great job!');
+            } else {
+              speak(String(currentReps));
+            }
+          }
+        }
+      } catch (err) {}
+    }
+    setInterval(pollState, 200);
+
+    // History and progress
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/history');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.sessions && data.sessions.length > 0) {
+          const list = $('historyList');
+          list.innerHTML = '';
+          data.sessions.slice(0, 5).forEach(s => {
+            const kcal = Math.round((s.reps || 0) * 4.2);
+            const row = document.createElement('div');
+            row.className = 'history-row';
+            row.innerHTML = `
+              <div class="thumb">✓</div>
+              <div><strong>${s.exercise_name || s.exercise}</strong><p>${s.reps} reps · ${s.duration_s || 30}s</p></div>
+              <span class="kcal">${kcal} kcal ›</span>
+            `;
+            list.appendChild(row);
+          });
+        }
+      } catch (_) {}
+    }
+    loadHistory();
+
+    function addHistoryEntry(exName, count, kcal) {
+      const list = $('historyList');
+      const row = document.createElement('div');
+      row.className = 'history-row';
+      row.innerHTML = `
+        <div class="thumb">✓</div>
+        <div><strong>${exName}</strong><p>${count} reps · Just now</p></div>
+        <span class="kcal">${kcal} kcal ›</span>
+      `;
+      list.prepend(row);
+    }
+
+    function clearHistory() {
+      $('historyList').innerHTML = '<p class="muted" style="padding:10px 0;">No saved sessions. Complete a workout to see it here.</p>';
+      toast('History cleared.');
+    }
+
+    // Modal Guide Control
+    const guideModal = $('guideModal');
+    $('btn-open-guide').onclick = () => guideModal.classList.add('open');
+    $('nav-nutrition').onclick = () => guideModal.classList.add('open');
+    function closeGuide() { guideModal.classList.remove('open'); }
+    guideModal.onclick = e => { if (e.target === guideModal) closeGuide(); };
+
+    function switchGuideTab(tabId, btn) {
+      document.querySelectorAll('.modal-nav button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
+      $(tabId).classList.add('active');
+    }
+
+    // Search filter
+    $('search').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.exercise').forEach(btn => {
+        const match = (btn.dataset.ex || '').toLowerCase().includes(q);
+        btn.classList.toggle('hidden', !match);
+      });
+    });
+  </script>
 </body>
 </html>

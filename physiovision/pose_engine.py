@@ -104,9 +104,33 @@ class Session:
         }
 
 
+def find_working_camera_index() -> int:
+    """Find the real hardware webcam index, bypassing virtual devices like TranScreen."""
+    for idx in (1, 0, 2):
+        try:
+            backend = cv2.CAP_DSHOW if hasattr(cv2, "CAP_DSHOW") else cv2.CAP_ANY
+            cap = cv2.VideoCapture(idx, backend)
+            if cap.isOpened():
+                ret, frame = cap.read()
+                cap.release()
+                if ret and frame is not None and float(frame.std()) > 10.0:
+                    return idx
+        except Exception:
+            pass
+    return 1 if cv2.VideoCapture(1).isOpened() else 0
+
+
 class PoseEngine:
-    def __init__(self, source=0, mirror: bool | None = None, width: int = 960,
+    def __init__(self, source: int | str | None = None, mirror: bool | None = None, width: int = 960,
                  model: str = "full"):
+        if source is None:
+            source = find_working_camera_index()
+        elif isinstance(source, int) and source == 0:
+            # If default 0 was specified, verify if 1 is the actual physical camera
+            detected = find_working_camera_index()
+            if detected != 0:
+                source = detected
+
         self.source = source
         self.is_file = isinstance(source, str)
         self.mirror = (not self.is_file) if mirror is None else mirror
@@ -187,7 +211,11 @@ class PoseEngine:
         return cv2.imencode(".jpg", img)[1].tobytes()
 
     def _open(self):
-        cap = cv2.VideoCapture(self.source)
+        if self.is_file or not hasattr(cv2, "CAP_DSHOW"):
+            cap = cv2.VideoCapture(self.source)
+        else:
+            # On Windows, DirectShow backend prevents MSMF black screen error (-1072875772)
+            cap = cv2.VideoCapture(self.source, cv2.CAP_DSHOW)
         if not self.is_file:
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)

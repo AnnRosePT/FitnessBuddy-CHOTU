@@ -16,9 +16,56 @@ import storage
 from exercises import EXERCISES
 
 
-def create_app(engine) -> Flask:
+_default_engine = None
+
+
+class _DummyEngine:
+    """Fallback engine when camera/MediaPipe is unavailable (e.g. headless cloud servers)."""
+
+    def latest_jpeg(self):
+        return 0, b""
+
+    def state(self):
+        return {
+            "camera_ok": False,
+            "person": False,
+            "fps": 0.0,
+            "source": "none",
+            "session": None,
+        }
+
+    def start_session(self, key, side, target, profile):
+        return self.state()
+
+    def pause(self, paused: bool):
+        pass
+
+    def end_session(self):
+        return None
+
+    def stop(self):
+        pass
+
+
+def _get_default_engine():
+    global _default_engine
+    if _default_engine is None:
+        try:
+            from pose_engine import PoseEngine
+            _default_engine = PoseEngine()
+            _default_engine.start()
+        except Exception as exc:
+            print(f"[PhysioVision] Headless or cloud environment detected ({exc}). Using fallback engine.")
+            _default_engine = _DummyEngine()
+    return _default_engine
+
+
+def create_app(engine=None) -> Flask:
     app = Flask(__name__)
     storage.init()
+
+    def get_active_engine():
+        return engine if engine is not None else _get_default_engine()
 
     @app.get("/")
     def index():
@@ -29,8 +76,9 @@ def create_app(engine) -> Flask:
     def video_feed():
         def frames():
             last_id = -1
+            eng = get_active_engine()
             while True:
-                fid, jpeg = engine.latest_jpeg()
+                fid, jpeg = eng.latest_jpeg()
                 if fid != last_id:
                     last_id = fid
                     yield (b"--frame\r\nContent-Type: image/jpeg\r\n"
@@ -45,7 +93,7 @@ def create_app(engine) -> Flask:
 
     @app.get("/api/state")
     def state():
-        return jsonify(engine.state())
+        return jsonify(get_active_engine().state())
 
     @app.post("/api/session/start")
     def start():
@@ -62,16 +110,16 @@ def create_app(engine) -> Flask:
             return jsonify(error="Target reps must be a number"), 400
         target = max(1, min(target, 200))
         profile = str(body.get("profile", "Me"))[:40]
-        return jsonify(engine.start_session(key, side, target, profile))
+        return jsonify(get_active_engine().start_session(key, side, target, profile))
 
     @app.post("/api/session/pause")
     def pause():
-        engine.pause(bool((request.get_json(silent=True) or {}).get("paused", True)))
-        return jsonify(engine.state())
+        get_active_engine().pause(bool((request.get_json(silent=True) or {}).get("paused", True)))
+        return jsonify(get_active_engine().state())
 
     @app.post("/api/session/finish")
     def finish():
-        summary = engine.end_session()
+        summary = get_active_engine().end_session()
         if summary is None:
             return jsonify(error="No session is running"), 400
         saved = summary["reps"] > 0 or summary["partial_reps"] > 0
@@ -81,8 +129,8 @@ def create_app(engine) -> Flask:
 
     @app.post("/api/session/cancel")
     def cancel():
-        engine.end_session()
-        return jsonify(engine.state())
+        get_active_engine().end_session()
+        return jsonify(get_active_engine().state())
 
     @app.get("/api/history")
     def history():
@@ -100,6 +148,10 @@ def create_app(engine) -> Flask:
     return app
 
 
+# Top-level 'app' instance expected by deployment platforms (Vercel, Render, Gunicorn, WSGI)
+app = create_app()
+
+
 def main():
     ap = argparse.ArgumentParser(description="PhysioVision AI exercise monitor")
     ap.add_argument("--source", default="0",
@@ -114,16 +166,17 @@ def main():
     from pose_engine import PoseEngine  # imported here so tests can skip MediaPipe
 
     source = int(args.source) if args.source.isdigit() else args.source
-    engine = PoseEngine(source=source, mirror=False if args.no_mirror else None,
-                        model=args.model)
-    engine.start()
-    app = create_app(engine)
+    custom_engine = PoseEngine(source=source, mirror=False if args.no_mirror else None,
+                               model=args.model)
+    custom_engine.start()
+    local_app = create_app(custom_engine)
     print(f"\n  PhysioVision AI running at http://{args.host}:{args.port}\n")
     try:
-        app.run(host=args.host, port=args.port, threaded=True, debug=False)
+        local_app.run(host=args.host, port=args.port, threaded=True, debug=False)
     finally:
-        engine.stop()
+        custom_engine.stop()
 
 
 if __name__ == "__main__":
     main()
+

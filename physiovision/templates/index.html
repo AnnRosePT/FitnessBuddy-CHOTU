@@ -6,6 +6,8 @@
   <title>FitSense — AI Fitness Coach</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
   <style>
     :root {
       --green: #20c768;
@@ -813,6 +815,7 @@
             <!-- Live AI Pose Annotated MJPEG Feed from Python OpenCV Engine -->
             <img id="feed" src="/video_feed" alt="Live Pose Skeleton Feed">
             <video id="webcamVideo" autoplay playsinline muted style="display:none; width:100%; height:100%; object-fit:cover;"></video>
+            <canvas id="poseCanvas" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:4;"></canvas>
 
             <!-- Loading overlay while stream connects -->
             <div class="camera-placeholder hidden" id="placeholder">
@@ -1307,6 +1310,9 @@
         feedImg.style.display = 'none';
         $('placeholder').classList.add('hidden');
 
+        // Launch real-time pose estimation and automatic rep counting
+        startPoseTrackingLoop();
+
         const activeTrack = stream.getVideoTracks()[0];
         const activeLabel = activeTrack ? activeTrack.label : 'Webcam';
         $('cameraStatus').textContent = `● Active: ${activeLabel}`;
@@ -1331,6 +1337,8 @@
       feedRetries = 0;
       feedImg.style.display = 'block';
       $('webcamVideo').style.display = 'none';
+      const c = $('poseCanvas');
+      if (c) c.style.display = 'none';
       feedImg.src = `/video_feed?t=${Date.now()}`;
       $('placeholder').classList.add('hidden');
       toast('Reconnecting server camera...');
@@ -1347,6 +1355,7 @@
         $('activeExercise').textContent = selectedExercise;
         $('exerciseBadge').innerHTML = `${emoji} &nbsp; <span>${selectedExercise}</span>`;
         speak(selectedExercise);
+        exerciseStage = 'rest';
         
         if (activeSession) {
           toast(`Switched to ${selectedExercise}.`);
@@ -1384,16 +1393,16 @@
       activeSession = { reps: 0, target: target };
       isPaused = false;
       lastReps = 0;
+      exerciseStage = 'rest';
       $('repCount').textContent = '0';
       $('startBtn').textContent = '● Workout Running';
       $('startBtn').classList.add('dark');
       $('pauseBtn').textContent = 'Ⅱ Pause';
       $('feedbackTitle').textContent = `Tracking ${selectedExercise}`;
-      $('feedbackText').textContent = 'Get into starting position. Reps and posture feedback are active.';
+      $('feedbackText').textContent = 'Get into starting position. AI posture tracking & automatic reps are active.';
       speak(`Starting ${selectedExercise}. Target is ${target} repetitions.`);
       toast(`Workout started: ${selectedExercise}`);
 
-      // Also call Flask backend if available
       try {
         fetch('/api/session/start', {
           method: 'POST',
@@ -1453,26 +1462,286 @@
       try { fetch('/api/session/finish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).catch(() => {}); } catch (_) {}
     }
 
-    function addDemoRep() {
+    // --- Browser-Based AI MediaPipe Pose Estimation & Rep Counter ---
+    let poseTracker = null;
+    let isTrackingActive = false;
+    let exerciseStage = 'rest';
+    let lastRepTimestamp = 0;
+
+    function initMediaPipePose() {
+      if (poseTracker || typeof Pose === 'undefined') return;
+      try {
+        poseTracker = new Pose({
+          locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseTracker.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        poseTracker.onResults(onPoseResults);
+        console.log('MediaPipe Pose tracker ready.');
+      } catch (err) {
+        console.warn('Pose init error:', err);
+      }
+    }
+
+    function startPoseTrackingLoop() {
+      initMediaPipePose();
+      if (isTrackingActive) return;
+      isTrackingActive = true;
+      const video = $('webcamVideo');
+      const canvas = $('poseCanvas');
+      canvas.style.display = 'block';
+
+      let lastSent = 0;
+      async function step() {
+        if (!isTrackingActive) return;
+        const now = Date.now();
+        if (poseTracker && video.readyState >= 2 && !video.paused && !video.ended && (now - lastSent > 38)) {
+          lastSent = now;
+          try {
+            await poseTracker.send({ image: video });
+          } catch (_) {}
+        }
+        requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    function findAngle(A, B, C) {
+      if (!A || !B || !C) return 0;
+      const bax = A.x - B.x;
+      const bay = A.y - B.y;
+      const bcx = C.x - B.x;
+      const bcy = C.y - B.y;
+      const na = Math.hypot(bax, bay);
+      const nc = Math.hypot(bcx, bcy);
+      if (na === 0 || nc === 0) return 0;
+      const cos = (bax * bcx + bay * bcy) / (na * nc);
+      return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+    }
+
+    function drawPoseSkeleton(lm, w, h, activeJoint) {
+      const canvas = $('poseCanvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+
+      const conns = [
+        [11, 12], [11, 13], [13, 15],
+        [12, 14], [14, 16],
+        [11, 23], [12, 24], [23, 24],
+        [23, 25], [25, 27],
+        [24, 26], [26, 28]
+      ];
+
+      ctx.strokeStyle = '#20c768';
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#00ff66';
+      ctx.shadowBlur = 8;
+
+      conns.forEach(([i, j]) => {
+        const p1 = lm[i];
+        const p2 = lm[j];
+        if (p1 && p2 && (p1.visibility || 1) > 0.35 && (p2.visibility || 1) > 0.35) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x * w, p1.y * h);
+          ctx.lineTo(p2.x * w, p2.y * h);
+          ctx.stroke();
+        }
+      });
+
+      ctx.shadowBlur = 0;
+      [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].forEach(i => {
+        const p = lm[i];
+        if (p && (p.visibility || 1) > 0.35) {
+          ctx.beginPath();
+          ctx.arc(p.x * w, p.y * h, 6, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#0aa74e';
+          ctx.stroke();
+        }
+      });
+
+      if (activeJoint && activeJoint.x && activeJoint.y) {
+        ctx.beginPath();
+        ctx.arc(activeJoint.x * w, activeJoint.y * h, 14, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    function onPoseResults(results) {
+      if (!results || !results.poseLandmarks) {
+        $('cameraStatus').textContent = '● Camera Active (Stand back in view)';
+        return;
+      }
+      const lm = results.poseLandmarks;
+      const video = $('webcamVideo');
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+
+      let angle = 0;
+      let activeJointPoint = null;
+
+      if (selectedExerciseKey === 'squat' || selectedExerciseKey === 'lunge') {
+        const leftVis = lm[25]?.visibility || 1;
+        const rightVis = lm[26]?.visibility || 1;
+        if (leftVis >= rightVis) {
+          angle = findAngle(lm[23], lm[25], lm[27]);
+          activeJointPoint = lm[25];
+        } else {
+          angle = findAngle(lm[24], lm[26], lm[28]);
+          activeJointPoint = lm[26];
+        }
+      } else if (selectedExerciseKey === 'bicep_curl' || selectedExerciseKey === 'push_up' || selectedExerciseKey === 'lateral_raise') {
+        const leftVis = lm[13]?.visibility || 1;
+        const rightVis = lm[14]?.visibility || 1;
+        if (leftVis >= rightVis) {
+          angle = findAngle(lm[11], lm[13], lm[15]);
+          activeJointPoint = lm[13];
+        } else {
+          angle = findAngle(lm[12], lm[14], lm[16]);
+          activeJointPoint = lm[14];
+        }
+      } else if (selectedExerciseKey === 'shoulder_press') {
+        angle = findAngle(lm[11], lm[13], lm[15]);
+        activeJointPoint = lm[13];
+      } else {
+        angle = findAngle(lm[23], lm[25], lm[27]);
+        activeJointPoint = lm[25];
+      }
+
+      drawPoseSkeleton(lm, w, h, activeJointPoint);
+
+      if (angle > 0) {
+        $('cameraStatus').textContent = `● AI Tracking: ${selectedExercise} (${Math.round(angle)}°)`;
+        $('cameraStatus').style.color = '#0aa74e';
+        evaluateRep(angle, selectedExerciseKey);
+      }
+    }
+
+    function evaluateRep(angle, exKey) {
+      const now = Date.now();
+      const minInterval = 650;
+
+      if (exKey === 'squat') {
+        // Squat: Rest ~150°+, Peak depth < 105°
+        if (angle > 150) {
+          if (exerciseStage === 'peak' && (now - lastRepTimestamp > minInterval)) {
+            exerciseStage = 'rest';
+            lastRepTimestamp = now;
+            registerCountedRep(angle, 'Great squat depth! Strong drive up.');
+          } else {
+            exerciseStage = 'rest';
+          }
+          $('feedbackTitle').textContent = 'Standing (Ready)';
+          $('feedbackText').textContent = 'Squat down until thighs are parallel to floor.';
+        } else if (angle < 105) {
+          exerciseStage = 'peak';
+          $('feedbackTitle').textContent = `Peak Depth (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = '🔥 Excellent depth! Now push up through heels.';
+        } else if (angle < 135) {
+          if (exerciseStage !== 'peak') exerciseStage = 'moving';
+          $('feedbackTitle').textContent = `Squatting (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = 'Keep lowering to reach full parallel depth!';
+        }
+      } else if (exKey === 'bicep_curl') {
+        // Bicep curl: Rest ~140°+, Peak contraction < 60°
+        if (angle > 140) {
+          if (exerciseStage === 'peak' && (now - lastRepTimestamp > minInterval)) {
+            exerciseStage = 'rest';
+            lastRepTimestamp = now;
+            registerCountedRep(angle, 'Full curl squeeze complete!');
+          } else {
+            exerciseStage = 'rest';
+          }
+          $('feedbackTitle').textContent = 'Arm Extended';
+          $('feedbackText').textContent = 'Curl weight upwards towards shoulder.';
+        } else if (angle < 60) {
+          exerciseStage = 'peak';
+          $('feedbackTitle').textContent = `Peak Squeeze (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = '💪 Strong contraction! Lower with control.';
+        } else {
+          if (exerciseStage !== 'peak') exerciseStage = 'moving';
+          $('feedbackTitle').textContent = `Curling (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = 'Squeeze upward towards shoulder.';
+        }
+      } else if (exKey === 'push_up') {
+        // Pushup: Rest ~140°+, Peak depth < 90°
+        if (angle > 140) {
+          if (exerciseStage === 'peak' && (now - lastRepTimestamp > minInterval)) {
+            exerciseStage = 'rest';
+            lastRepTimestamp = now;
+            registerCountedRep(angle, 'Strong push-up rep!');
+          } else {
+            exerciseStage = 'rest';
+          }
+          $('feedbackTitle').textContent = 'Plank Position';
+          $('feedbackText').textContent = 'Lower chest smoothly towards the floor.';
+        } else if (angle < 90) {
+          exerciseStage = 'peak';
+          $('feedbackTitle').textContent = `Chest to Deck (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = 'Great depth! Push strong back up.';
+        }
+      } else if (exKey === 'shoulder_press') {
+        // Overhead press: Rest ~80°-95°, Peak lockout > 150°
+        if (angle < 95) {
+          if (exerciseStage === 'peak' && (now - lastRepTimestamp > minInterval)) {
+            exerciseStage = 'rest';
+            lastRepTimestamp = now;
+            registerCountedRep(angle, 'Full overhead lockout!');
+          } else {
+            exerciseStage = 'rest';
+          }
+          $('feedbackTitle').textContent = 'Elbows at 90°';
+          $('feedbackText').textContent = 'Press fully overhead.';
+        } else if (angle > 150) {
+          exerciseStage = 'peak';
+          $('feedbackTitle').textContent = `Overhead Lockout (${Math.round(angle)}°)`;
+          $('feedbackText').textContent = 'Good lockout! Lower with control.';
+        }
+      } else {
+        if (angle < 90) exerciseStage = 'peak';
+        if (angle > 145 && exerciseStage === 'peak' && (now - lastRepTimestamp > minInterval)) {
+          exerciseStage = 'rest';
+          lastRepTimestamp = now;
+          registerCountedRep(angle, 'Rep completed!');
+        }
+      }
+    }
+
+    function registerCountedRep(angle, cueMsg) {
       lastReps++;
       $('repCount').textContent = lastReps;
       const kcalBurned = lastReps * 4;
       $('liveBurn').textContent = 230 + kcalBurned;
-      
+
       const percent = Math.min(100, Math.round(72 + (lastReps / target) * 28));
       $('goalPercent').textContent = percent;
       $('activityRing').style.background = `conic-gradient(var(--green) 0 ${percent}%, #e7ecee ${percent}%)`;
 
       if (lastReps >= target) {
-        $('feedbackTitle').textContent = 'Target Achieved!';
-        $('feedbackText').textContent = 'Outstanding effort! You completed all target reps.';
+        $('feedbackTitle').textContent = '🎉 Target Achieved!';
+        $('feedbackText').textContent = cueMsg || 'Outstanding effort! You completed all target reps.';
         speak(`${lastReps}. Target achieved! Amazing work!`);
-        toast('🎉 Target achieved! Fantastic!');
+        toast('🎉 Target achieved! Awesome work!');
       } else {
-        $('feedbackTitle').textContent = `Rep ${lastReps} Done`;
-        $('feedbackText').textContent = 'Smooth form. Keep the rhythm controlled.';
+        $('feedbackTitle').textContent = `Rep ${lastReps} Done (${Math.round(angle)}°)`;
+        $('feedbackText').textContent = cueMsg || 'Good form. Smooth rhythm.';
         speak(String(lastReps));
+        toast(`Rep ${lastReps} counted!`);
       }
+    }
+
+    function addDemoRep() {
+      registerCountedRep(90, 'Rep added!');
     }
 
     // Polling backend state (/api/state)
